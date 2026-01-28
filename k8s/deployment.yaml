@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vocab-app
+  labels:
+    app: vocab-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vocab-app
+  template:
+    metadata:
+      labels:
+        app: vocab-app
+    spec:
+      containers:
+        - name: vocab-app
+          image: harbor.watasoftware.com/vocab-app:latest  # Đảm bảo tên image chính xác
+          ports:
+            - containerPort: 3000  # Cổng mà ứng dụng của bạn đang chạy trong container
+          env:
+            - name: NODE_ENV
+              value: "production"
