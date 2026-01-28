@@ -1,7 +1,7 @@
 @use "./variables.scss" as *;
 
 .QuizForm {
-  background: #222d24;
+  background: #0f172a;
   border-radius: 16px;
   padding: 24px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
@@ -20,7 +20,7 @@
     left: 0;
     right: 0;
     height: 4px;
-    background: linear-gradient(90deg, #4caf50, #8bc34a);
+    background: linear-gradient(90deg, #22c55e, #38bdf8);
   }
 
   h2 {

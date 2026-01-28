@@ -22,6 +22,7 @@ const QuizForm: React.FC<QuizFormProps> = ({
   const [history, setHistory] = useState<
     { word: string; correct: boolean; timeTaken: number }[]
   >([]);
+  const [showHistory, setShowHistory] = useState(true);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -87,7 +88,9 @@ const QuizForm: React.FC<QuizFormProps> = ({
       />
       <Button
         variant="contained"
-        sx={{ mt: 2 }}
+        color="primary"
+        size="large"
+        sx={{ mt: 2, borderRadius: 2, fontWeight: 700, textTransform: "none" }}
         onClick={checkAnswer}
         disabled={!input || result !== null}
       >
@@ -101,14 +104,26 @@ const QuizForm: React.FC<QuizFormProps> = ({
         </Typography>
       )}
       <div className={styles.history}>
-        <Typography variant="h6" className={styles.historyTitle}>
-          Lịch sử học
-        </Typography>
-        {history.map((item, index) => (
-          <Typography key={index} className={styles.historyItem}>
-            {item.word}: {item.correct ? "✅" : "❌"} ({item.timeTaken}s)
-          </Typography>
-        ))}
+        <Button
+          variant="text"
+          size="small"
+          onClick={() => setShowHistory((v) => !v)}
+          sx={{ mt: 2, mb: 1, color: "#c3ffe1", textTransform: "none", fontWeight: 500 }}
+        >
+          {showHistory ? "Ẩn lịch sử học" : "Hiện lịch sử học"}
+        </Button>
+        {showHistory && (
+          <>
+            <Typography variant="h6" className={styles.historyTitle}>
+              Lịch sử học
+            </Typography>
+            {history.map((item, index) => (
+              <Typography key={index} className={styles.historyItem}>
+                {item.word}: {item.correct ? "✅" : "❌"} ({item.timeTaken}s)
+              </Typography>
+            ))}
+          </>
+        )}
       </div>
     </div>
   );

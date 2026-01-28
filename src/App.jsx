@@ -78,19 +78,19 @@ ChartJS.register(
   ArcElement
 );
 
-// Theme configuration
-const theme = createTheme({
+// Base theme configuration (we'll override mode with state)
+const baseTheme = createTheme({
   palette: {
-    mode: "light",
+    mode: "dark",
     primary: {
-      main: "#1976d2",
+      main: "#22c55e", // teal-green
     },
     secondary: {
-      main: "#dc004e",
+      main: "#38bdf8", // cyan
     },
     background: {
-      default: "#f5f5f5",
-      paper: "#ffffff",
+      default: "#020617", // near-black with blue hint
+      paper: "#0f172a", // slate-900
     },
   },
   typography: {
@@ -211,19 +211,22 @@ const getStyles = (theme) => ({
 
 function App() {
   // Theme state
-  const [mode, setMode] = useState("light");
-  const theme = createTheme({
-    palette: {
-      mode,
-      primary: {
-        main: "#43e97b",
-      },
-      background: {
-        default: mode === "dark" ? "#191f1e" : "#f8f9fa",
-        paper: mode === "dark" ? "#222d24" : "#fff",
-      },
-    },
-  });
+  const [mode, setMode] = useState < "light" | "dark" > ("dark");
+  const theme = useMemo(
+    () =>
+      createTheme({
+        ...baseTheme,
+        palette: {
+          ...baseTheme.palette,
+          mode,
+          background: {
+            default: mode === "dark" ? "#020617" : "#f4f7ff",
+            paper: mode === "dark" ? "#0f172a" : "#ffffff",
+          },
+        },
+      }),
+    [mode]
+  );
   const styles = getStyles(theme);
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
 
