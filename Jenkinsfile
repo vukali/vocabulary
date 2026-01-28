@@ -15,6 +15,8 @@ spec:
     volumeMounts:
     - name: docker-config
       mountPath: /kaniko/.docker
+    securityContext:
+      runAsUser: 0
 
   - name: tools
     image: alpine:3.20
