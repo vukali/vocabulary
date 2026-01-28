@@ -38,9 +38,7 @@ spec:
         KUSTOM_FILE    = 'k8s/kustomization.yaml'   // Cập nhật với đúng đường dẫn
 
         HARBOR_HOST    = 'harbor.watasoftware.com'
-        /* groovylint-disable-next-line DuplicateStringLiteral */
         HARBOR_PROJECT = 'vocab-app'
-        /* groovylint-disable-next-line DuplicateStringLiteral */
         IMAGE_NAME     = 'vocab-app'
         IMAGE_REPO     = "${HARBOR_HOST}/${HARBOR_PROJECT}/${IMAGE_NAME}"
 
@@ -63,7 +61,6 @@ spec:
         stage('Anti-loop (skip bot commit)') {
             steps {
                 container('tools') {
-                    /* groovylint-disable-next-line NestedBlockDepth */
                     script {
                         sh '''
                             set -eu
@@ -71,14 +68,11 @@ spec:
                             git config --global --add safe.directory "$PWD"
                         '''
 
-                        /* groovylint-disable-next-line VariableTypeRequired */
-                        /* groovylint-disable-next-line NoDef, VariableTypeRequired */
                         def authorEmail = sh(
                             returnStdout: true,
                             script: 'git log -1 --pretty=format:%ae || true'
                         ).trim()
 
-                        /* groovylint-disable-next-line NoDef, VariableTypeRequired */
                         def msg = sh(
                             returnStdout: true,
                             script: 'git log -1 --pretty=format:%s || true'
@@ -87,9 +81,7 @@ spec:
                         echo "Last commit author: ${authorEmail}"
                         echo "Last commit msg   : ${msg}"
 
-                        /* groovylint-disable-next-line NestedBlockDepth */
                         if (authorEmail == env.BOT_EMAIL || msg.contains(env.SKIP_MARKER)) {
-                            /* groovylint-disable-next-line DuplicateStringLiteral */
                             env.SKIP_BUILD = 'true'
                             echo "Skip build: detected bot commit or ${env.SKIP_MARKER}"
                         }
@@ -100,14 +92,11 @@ spec:
 
         stage('Set Image Tag') {
             when {
-                /* groovylint-disable-next-line DuplicateStringLiteral */
                 expression { env.SKIP_BUILD != 'true' }
             }
             steps {
                 script {
-                    /* groovylint-disable-next-line NoDef, VariableTypeRequired */
                     def sha = env.GIT_COMMIT ?: ''
-                    /* groovylint-disable-next-line DuplicateNumberLiteral */
                     env.IMAGE_TAG = (sha.length() >= 7) ? sha.substring(0, 7) : env.BUILD_NUMBER
                     echo "IMAGE_TAG=${env.IMAGE_TAG}"
                 }
@@ -116,14 +105,11 @@ spec:
 
         stage('Build & Push to Harbor (Kaniko)') {
             when {
-                /* groovylint-disable-next-line DuplicateStringLiteral */
                 expression { env.SKIP_BUILD != 'true' }
             }
             steps {
                 container('kaniko') {
-                    /* groovylint-disable-next-line LineLength, NestedBlockDepth */
                     withCredentials([usernamePassword(credentialsId: 'harbor-cred', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
-                        /* groovylint-disable-next-line GStringExpressionWithinString */
                         sh '''
                             set -eu
 
@@ -144,15 +130,11 @@ EOF
 
         stage('Bump image tag in kustomization.yaml & push Git') {
             when {
-                /* groovylint-disable-next-line DuplicateStringLiteral */
                 expression { env.SKIP_BUILD != 'true' }
             }
             steps {
-                /* groovylint-disable-next-line DuplicateStringLiteral */
                 container('tools') {
-                    /* groovylint-disable-next-line NestedBlockDepth */
                     withCredentials([string(credentialsId: 'github-token', variable: 'GITHUB_TOKEN')]) {
-                        /* groovylint-disable-next-line GStringExpressionWithinString */
                         sh '''
                             set -eu
                             apk add --no-cache git yq >/dev/null
@@ -164,5 +146,42 @@ EOF
                             ORIGIN_URL=$(git remote get-url origin)
                             case "$ORIGIN_URL" in
                               https://* )
-                                /* groovylint-disable-next-line LineLength */
-                                git remote set-url origin "https://x-access-token:${GITHUB_TOKE_
+                                git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@${ORIGIN_URL#https://}"
+                                ;;
+                            esac
+
+                            FILE="${KUSTOM_FILE}"
+
+                            if ! yq '.images' "$FILE" >/dev/null 2>&1; then
+                              yq -i '.images = []' "$FILE"
+                            fi
+
+                            if ! yq -e '.images[] | select(.name=="'"${IMAGE_REPO}"'")' "$FILE" >/dev/null 2>&1; then
+                              yq -i '.images += [{"name":"'"${IMAGE_REPO}"'","newTag":"'"${IMAGE_TAG}"'"}]' "$FILE"
+                            else
+                              yq -i '(.images[] | select(.name=="'"${IMAGE_REPO}"'") | .newTag) = "'"${IMAGE_TAG}"'"' "$FILE"
+                            fi
+
+                            git add "$FILE"
+                            git commit -m "chore(vocab-app): bump image tag to ${IMAGE_TAG} ${SKIP_MARKER}" || true
+                            git push origin HEAD:main
+                        '''
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "OK: pushed ${IMAGE_REPO}:${IMAGE_TAG} + updated ${KUSTOM_FILE}. ArgoCD autosync sẽ rollout."
+        }
+        always {
+            script {
+                if (env.SKIP_BUILD == 'true') {
+                    echo 'Build was skipped by anti-loop logic.'
+                }
+            }
+        }
+    }
+}
