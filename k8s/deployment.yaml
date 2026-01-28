@@ -2,10 +2,9 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: vocab-app
-  labels:
-    app: vocab-app
+  namespace: vocab
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       app: vocab-app
@@ -16,9 +15,41 @@ spec:
     spec:
       containers:
         - name: vocab-app
-          image: harbor.watasoftware.com/vocab-app:latest  # Đảm bảo tên image chính xác
+          image: harbor.watasoftware.com/demo/vocab-app:latest   # Cập nhật image tag
+          imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: 3000  # Cổng mà ứng dụng của bạn đang chạy trong container
-          env:
-            - name: NODE_ENV
-              value: "production"
+            - containerPort: 3000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vocab-app
+  namespace: vocab
+spec:
+  selector:
+    app: vocab-app
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+      protocol: TCP
+  type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: vocab-app
+  namespace: demo-01
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: vocab.demo.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: vocab-app
+                port:
+                  number: 3000
