@@ -1,18 +1,29 @@
 pipeline {
-    agent any
+    agent {
+        kubernetes {
+            label 'jenkins-agent'
+            defaultContainer 'jnlp'
+            containers {
+                // Thêm container Docker-in-Docker
+                containerTemplate(name: 'docker', image: 'docker:19.03.12-dind', ttyEnabled: true, command: 'cat')
+            }
+        }
+    }
 
     environment {
-        REGISTRY = 'harbor.watasoftware.com'  // URL của Harbor registry
-        IMAGE_NAME = 'vocab-app'              // Tên Docker image
-        IMAGE_TAG = 'latest'                  // Tag của image (có thể dùng git commit hoặc các chiến lược khác)
+        REGISTRY = 'harbor.watasoftware.com'
+        IMAGE_NAME = 'vocab-app'
+        IMAGE_TAG = 'latest'
     }
 
     stages {
         stage('Build') {
             steps {
                 script {
-                    // Xây dựng Docker image
-                    sh "docker build -t ${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG} ."
+                    // Sử dụng Docker-in-Docker
+                    container('docker') {
+                        sh 'docker build -t $REGISTRY/$IMAGE_NAME:$IMAGE_TAG .'
+                    }
                 }
             }
         }
@@ -20,14 +31,12 @@ pipeline {
         stage('Push to Harbor') {
             steps {
                 script {
-                    // Đăng nhập vào Harbor bằng Jenkins credentials
-                    withCredentials([usernamePassword(credentialsId: 'harbor-credentials', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
-                        // Đăng nhập vào Harbor registry
-                        sh """echo ${DOCKER_PASSWORD} | docker login ${REGISTRY} -u ${DOCKER_USERNAME} --password-stdin"""
+                    container('docker') {
+                        withCredentials([usernamePassword(credentialsId: 'harbor-credentials', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
+                            sh "echo $DOCKER_PASSWORD | docker login $REGISTRY -u $DOCKER_USERNAME --password-stdin"
+                            sh "docker push $REGISTRY/$IMAGE_NAME:$IMAGE_TAG"
+                        }
                     }
-
-                    // Đẩy Docker image lên Harbor
-                    sh "docker push ${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
                 }
             }
         }
