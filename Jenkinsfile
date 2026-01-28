@@ -24,6 +24,10 @@ spec:
   volumes:
   - name: docker-config
     emptyDir: {}
+
+  securityContext:
+    runAsUser: 1000   # Đảm bảo quyền truy cập đúng
+    fsGroup: 1000     # Đảm bảo quyền nhóm
 '''
         }
     }
@@ -161,86 +165,4 @@ EOF
                             case "$ORIGIN_URL" in
                               https://* )
                                 /* groovylint-disable-next-line LineLength */
-                                git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@${ORIGIN_URL#https://}"
-                                ;;
-                            esac
-
-                            FILE="${KUSTOM_FILE}"
-
-                            if ! yq '.images' "$FILE" >/dev/null 2>&1; then
-                              yq -i '.images = []' "$FILE"
-                            fi
-
-                            if ! yq -e '.images[] | select(.name=="'"${IMAGE_REPO}"'")' "$FILE" >/dev/null 2>&1; then
-                              yq -i '.images += [{"name":"'"${IMAGE_REPO}"'","newTag":"'"${IMAGE_TAG}"'"}]' "$FILE"
-                            else
-                              /* groovylint-disable-next-line LineLength */
-                              yq -i '(.images[] | select(.name=="'"${IMAGE_REPO}"'") | .newTag) = "'"${IMAGE_TAG}"'"' "$FILE"
-                            fi
-
-                            git add "$FILE"
-                            git commit -m "chore(vocab-app): bump image tag to ${IMAGE_TAG} ${SKIP_MARKER}" || true
-                            git push origin HEAD:main
-                        '''
-                    }
-                }
-            }
-        }
-    }
-
-    post {
-        success {
-            echo "OK: pushed ${IMAGE_REPO}:${IMAGE_TAG} + updated ${KUSTOM_FILE}. ArgoCD autosync sẽ rollout."
-        }
-        always {
-            script {
-                if (env.SKIP_BUILD == 'true') {
-                    echo 'Build was skipped by anti-loop logic.'
-                }
-            }
-        }
-    }
-}
-// pipeline {
-//     agent {
-//         kubernetes {
-//             label 'jenkins-agent'
-//             defaultContainer 'jnlp'
-//             containerTemplate(name: 'docker', image: 'docker:19.03.12-dind', ttyEnabled: true, command: 'cat')
-//         }
-//     }
-
-//     environment {
-//         REGISTRY = 'harbor.watasoftware.com'
-//         IMAGE_NAME = 'vocab-app'
-//         IMAGE_TAG = 'latest'
-//     }
-
-//     stages {
-//         stage('Build') {
-//             steps {
-//                 script {
-//                     // Sử dụng Docker-in-Docker container
-//                     container('docker') {
-//                         sh 'docker build -t ${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG} .'
-//                     }
-//                 }
-//             }
-//         }
-
-//         stage('Push to Harbor') {
-//             steps {
-//                 script {
-//                     container('docker') {
-/* groovylint-disable-next-line LineLength */
-//                         withCredentials([usernamePassword(credentialsId: 'vudt', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
-/* groovylint-disable-next-line LineLength */
-//                             sh "echo ${DOCKER_PASSWORD} | docker login ${REGISTRY} -u ${DOCKER_USERNAME} --password-stdin"
-//                             sh "docker push ${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
-//                         }
-//                     }
-//                 }
-//             }
-//         }
-//     }
-// }
+                                git remote set-url origin "https://x-access-token:${GITHUB_TOKE_
