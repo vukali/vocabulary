@@ -1,5 +1,53 @@
 pipeline {
-    agent any
+    agent {
+        kubernetes {
+            yaml '''
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    app: vocab-app
+spec:
+  containers:
+  - name: kaniko
+    image: gcr.io/kaniko-project/executor:debug
+    command: ["/busybox/busybox", "cat"]
+    tty: true
+    volumeMounts:
+    - name: docker-config
+      mountPath: /kaniko/.docker
+    - name: workspace-volume
+      mountPath: /home/jenkins/agent
+      readOnly: false
+  - name: tools
+    image: alpine:3.20
+    command: ["/bin/sh", "-c", "apk add --no-cache git"]
+    tty: true
+    volumeMounts:
+    - name: workspace-volume
+      mountPath: /home/jenkins/agent
+      readOnly: false
+  volumes:
+  - name: docker-config
+    emptyDir: {}
+  - name: workspace-volume
+    emptyDir: {}
+'''
+        }
+    }
+
+    environment {
+        DOCKER_CONTEXT = '.'
+        DOCKERFILE = 'Dockerfile'
+        KUSTOM_FILE = 'k8s/kustomization.yaml'
+        HARBOR_HOST = 'harbor.watasoftware.com'
+        HARBOR_PROJECT = 'vocab-app'
+        IMAGE_NAME = 'vocab-app'
+        IMAGE_REPO = "${HARBOR_HOST}/${HARBOR_PROJECT}/${IMAGE_NAME}"
+        SKIP_MARKER = '[skip-jenkins]'
+        BOT_EMAIL = 'jenkins@local'
+        SKIP_BUILD = 'false'
+    }
 
     stages {
         stage('Checkout') {
@@ -7,7 +55,7 @@ pipeline {
                 checkout scm
             }
         }
-        
+
         stage('Build & Push to Harbor') {
             steps {
                 container('kaniko') {
@@ -31,7 +79,7 @@ EOF
 
     post {
         success {
-            echo "Image pushed to Harbor. Deployment handled by ArgoCD."
+            echo "Build and push to Harbor completed."
         }
     }
 }
