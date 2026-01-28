@@ -18,16 +18,22 @@ spec:
 
   - name: tools
     image: alpine:3.20
-    command: ["/bin/sh", "-c", "cat"]
+    command: ["/bin/sh", "-c", "apk add --no-cache git"]
     tty: true
+    securityContext:
+      runAsUser: 0  # Chạy với quyền root để cài đặt git
+    volumeMounts:
+    - mountPath: "/home/jenkins/agent"
+      name: "workspace-volume"
+      readOnly: false
 
   volumes:
   - name: docker-config
     emptyDir: {}
 
   securityContext:
-    runAsUser: 1000   # Đảm bảo quyền truy cập đúng
-    fsGroup: 1000     # Đảm bảo quyền nhóm
+    runAsUser: 1000
+    fsGroup: 1000
 '''
         }
     }
