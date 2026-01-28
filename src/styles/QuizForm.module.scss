@@ -1,0 +1,147 @@
+@use "./variables.scss" as *;
+
+.QuizForm {
+  background: #222d24;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  color: #fff;
+  max-width: 600px;
+  margin: 0 auto;
+  position: relative;
+  overflow: hidden;
+  // Prevent layout shift when result appears and history grows
+  min-height: 360px;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #4caf50, #8bc34a);
+  }
+
+  h2 {
+    margin: 0 0 24px;
+    font-size: 24px;
+    font-weight: 600;
+    color: #fff;
+    text-align: center;
+  }
+
+  .resultCorrect,
+  .resultWrong {
+    // Reserve space so the form doesn't "jump" when the result mounts/unmounts
+    min-height: 28px;
+    margin-top: 12px;
+    font-weight: 700;
+  }
+
+  .resultCorrect {
+    color: #43e97b;
+  }
+
+  .resultWrong {
+    color: #ff6b6b;
+  }
+
+  .history {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    max-height: 140px;
+    overflow: auto;
+  }
+
+  .historyTitle {
+    margin-bottom: 8px;
+    opacity: 0.9;
+  }
+
+  .historyItem {
+    font-size: 0.95rem;
+    opacity: 0.85;
+    line-height: 1.35;
+    word-break: break-word;
+  }
+
+  .formGroup {
+    margin-bottom: 20px;
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 500;
+      color: #e0e0e0;
+    }
+
+    input,
+    select {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.05);
+      color: #fff;
+      font-size: 16px;
+      transition: all 0.3s ease;
+
+      &:focus {
+        outline: none;
+        border-color: #4caf50;
+        background: rgba(255, 255, 255, 0.1);
+      }
+
+      &::placeholder {
+        color: rgba(255, 255, 255, 0.5);
+      }
+    }
+
+    select {
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      background-size: 16px;
+      padding-right: 40px;
+    }
+  }
+
+  .buttonGroup {
+    display: flex;
+    gap: 12px;
+    margin-top: 32px;
+
+    button {
+      flex: 1;
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.3s ease;
+
+      &.startButton {
+        background: linear-gradient(135deg, #4caf50, #8bc34a);
+        color: #fff;
+
+        &:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
+        }
+      }
+
+      &.cancelButton {
+        background: rgba(255, 255, 255, 0.1);
+        color: #fff;
+
+        &:hover {
+          background: rgba(255, 255, 255, 0.2);
+        }
+      }
+    }
+  }
+}

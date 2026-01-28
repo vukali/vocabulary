@@ -1,0 +1,64 @@
+{
+  "words": [
+    {
+      "word": "negotiate",
+      "meaning": "thương lượng",
+      "phonetic": "/nɪˈɡəʊʃieɪt/",
+      "audio": "https://example.com/negotiate.mp3"
+    },
+    {
+      "word": "collaborate",
+      "meaning": "hợp tác",
+      "phonetic": "/kəˈlæbəreɪt/",
+      "audio": "https://example.com/collaborate.mp3"
+    },
+    {
+      "word": "articulate",
+      "meaning": "diễn đạt rõ ràng",
+      "phonetic": "/ɑːˈtɪkjuleɪt/",
+      "audio": "https://example.com/articulate.mp3"
+    },
+    {
+      "word": "persuade",
+      "meaning": "thuyết phục",
+      "phonetic": "/pəˈsweɪd/",
+      "audio": "https://example.com/persuade.mp3"
+    },
+    {
+      "word": "mediate",
+      "meaning": "hòa giải",
+      "phonetic": "/ˈmiːdieɪt/",
+      "audio": "https://example.com/mediate.mp3"
+    },
+    {
+      "word": "elaborate",
+      "meaning": "giải thích chi tiết",
+      "phonetic": "/ɪˈlæbərət/",
+      "audio": "https://example.com/elaborate.mp3"
+    },
+    {
+      "word": "convey",
+      "meaning": "truyền đạt",
+      "phonetic": "/kənˈveɪ/",
+      "audio": "https://example.com/convey.mp3"
+    },
+    {
+      "word": "clarify",
+      "meaning": "làm rõ",
+      "phonetic": "/ˈklærɪfaɪ/",
+      "audio": "https://example.com/clarify.mp3"
+    },
+    {
+      "word": "facilitate",
+      "meaning": "tạo điều kiện",
+      "phonetic": "/fəˈsɪlɪteɪt/",
+      "audio": "https://example.com/facilitate.mp3"
+    },
+    {
+      "word": "interact",
+      "meaning": "tương tác",
+      "phonetic": "/ˌɪntərˈækt/",
+      "audio": "https://example.com/interact.mp3"
+    }
+  ]
+} 

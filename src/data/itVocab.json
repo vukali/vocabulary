@@ -1,0 +1,64 @@
+{
+  "words": [
+    {
+      "word": "algorithm",
+      "meaning": "thuật toán",
+      "phonetic": "/ˈælɡərɪðəm/",
+      "audio": "https://example.com/algorithm.mp3"
+    },
+    {
+      "word": "database",
+      "meaning": "cơ sở dữ liệu",
+      "phonetic": "/ˈdeɪtəbeɪs/",
+      "audio": "https://example.com/database.mp3"
+    },
+    {
+      "word": "framework",
+      "meaning": "khung làm việc",
+      "phonetic": "/ˈfreɪmwɜːk/",
+      "audio": "https://example.com/framework.mp3"
+    },
+    {
+      "word": "interface",
+      "meaning": "giao diện",
+      "phonetic": "/ˈɪntəfeɪs/",
+      "audio": "https://example.com/interface.mp3"
+    },
+    {
+      "word": "protocol",
+      "meaning": "giao thức",
+      "phonetic": "/ˈprəʊtəkɒl/",
+      "audio": "https://example.com/protocol.mp3"
+    },
+    {
+      "word": "server",
+      "meaning": "máy chủ",
+      "phonetic": "/ˈsɜːvər/",
+      "audio": "https://example.com/server.mp3"
+    },
+    {
+      "word": "software",
+      "meaning": "phần mềm",
+      "phonetic": "/ˈsɒftweər/",
+      "audio": "https://example.com/software.mp3"
+    },
+    {
+      "word": "network",
+      "meaning": "mạng",
+      "phonetic": "/ˈnetwɜːk/",
+      "audio": "https://example.com/network.mp3"
+    },
+    {
+      "word": "security",
+      "meaning": "bảo mật",
+      "phonetic": "/sɪˈkjʊərəti/",
+      "audio": "https://example.com/security.mp3"
+    },
+    {
+      "word": "application",
+      "meaning": "ứng dụng",
+      "phonetic": "/ˌæplɪˈkeɪʃn/",
+      "audio": "https://example.com/application.mp3"
+    }
+  ]
+} 

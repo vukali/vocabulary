@@ -1,0 +1,65 @@
+{
+  "words": [
+    {
+      "word": "hello",
+      "meaning": "xin chào",
+      "phonetic": "/həˈləʊ/",
+      "audio": "https://example.com/hello.mp3"
+    },
+    {
+      "word": "world",
+      "meaning": "thế giới",
+      "phonetic": "/wɜːld/",
+      "audio": "https://example.com/world.mp3"
+    },
+    {
+      "word": "computer",
+      "meaning": "máy tính",
+      "phonetic": "/kəmˈpjuːtər/",
+      "audio": "https://example.com/computer.mp3"
+    },
+    {
+      "word": "book",
+      "meaning": "sách",
+      "phonetic": "/bʊk/",
+      "audio": "https://example.com/book.mp3"
+    },
+    {
+      "word": "student",
+      "meaning": "học sinh",
+      "phonetic": "/ˈstjuːdənt/",
+      "audio": "https://example.com/student.mp3"
+    },
+    {
+      "word": "teacher",
+      "meaning": "giáo viên",
+      "phonetic": "/ˈtiːtʃər/",
+      "audio": "https://example.com/teacher.mp3"
+    },
+    {
+      "word": "friend",
+      "meaning": "bạn bè",
+      "phonetic": "/frend/",
+      "audio": "https://example.com/friend.mp3"
+    },
+    {
+      "word": "family",
+      "meaning": "gia đình",
+      "phonetic": "/ˈfæməli/",
+      "audio": "https://example.com/family.mp3"
+    },
+    {
+      "word": "house",
+      "meaning": "ngôi nhà",
+      "phonetic": "/haʊs/",
+      "audio": "https://example.com/house.mp3"
+    },
+    {
+      "word": "school",
+      "meaning": "trường học",
+      "phonetic": "/skuːl/",
+      "audio": "https://example.com/school.mp3"
+    }
+  ]
+}
+  

@@ -1,0 +1,64 @@
+{
+  "words": [
+    {
+      "word": "serendipity",
+      "meaning": "sự tình cờ may mắn",
+      "phonetic": "/ˌserənˈdɪpəti/",
+      "audio": "https://example.com/serendipity.mp3"
+    },
+    {
+      "word": "ephemeral",
+      "meaning": "tạm thời, ngắn ngủi",
+      "phonetic": "/ɪˈfemərəl/",
+      "audio": "https://example.com/ephemeral.mp3"
+    },
+    {
+      "word": "mellifluous",
+      "meaning": "ngọt ngào, du dương",
+      "phonetic": "/məˈlɪfluəs/",
+      "audio": "https://example.com/mellifluous.mp3"
+    },
+    {
+      "word": "quixotic",
+      "meaning": "lý tưởng hóa, không thực tế",
+      "phonetic": "/kwɪkˈsɒtɪk/",
+      "audio": "https://example.com/quixotic.mp3"
+    },
+    {
+      "word": "ubiquitous",
+      "meaning": "phổ biến, có mặt khắp nơi",
+      "phonetic": "/juːˈbɪkwɪtəs/",
+      "audio": "https://example.com/ubiquitous.mp3"
+    },
+    {
+      "word": "perspicacious",
+      "meaning": "sáng suốt, tinh tường",
+      "phonetic": "/ˌpɜːspɪˈkeɪʃəs/",
+      "audio": "https://example.com/perspicacious.mp3"
+    },
+    {
+      "word": "ineffable",
+      "meaning": "không thể diễn tả bằng lời",
+      "phonetic": "/ɪnˈefəbl/",
+      "audio": "https://example.com/ineffable.mp3"
+    },
+    {
+      "word": "ethereal",
+      "meaning": "thanh thoát, nhẹ nhàng",
+      "phonetic": "/ɪˈθɪəriəl/",
+      "audio": "https://example.com/ethereal.mp3"
+    },
+    {
+      "word": "sycophant",
+      "meaning": "kẻ xu nịnh",
+      "phonetic": "/ˈsɪkəfænt/",
+      "audio": "https://example.com/sycophant.mp3"
+    },
+    {
+      "word": "obfuscate",
+      "meaning": "làm rối rắm, khó hiểu",
+      "phonetic": "/ˈɒbfəskeɪt/",
+      "audio": "https://example.com/obfuscate.mp3"
+    }
+  ]
+} 

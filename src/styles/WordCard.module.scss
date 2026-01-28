@@ -1,0 +1,202 @@
+// src/styles/WordCard.module.scss
+
+.word-card {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    margin: 20px 0;
+    border: 1px solid #e1e5e9;
+    transition: all 0.3s ease;
+  
+    &:hover {
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+      transform: translateY(-2px);
+    }
+  }
+  
+  .word-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 2px solid #f0f0f0;
+  }
+  
+  .word-title {
+    flex: 1;
+  }
+  
+  .word-text {
+    font-size: 2.2rem;
+    font-weight: 700;
+    color: #2c3e50;
+    margin: 0 0 8px 0;
+    text-transform: capitalize;
+  }
+  
+  .phonetic {
+    font-size: 1.1rem;
+    color: #7f8c8d;
+    font-style: italic;
+    font-weight: 400;
+  }
+  
+  .word-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  
+  .audio-btn,
+  .favorite-btn {
+    background: #3498db;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 1.2rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    color: white;
+  
+    &:hover {
+      background: #2980b9;
+      transform: scale(1.05);
+    }
+  
+    &:active {
+      transform: scale(0.95);
+    }
+  }
+  
+  .favorite-btn {
+    background: #f39c12;
+  
+    &:hover {
+      background: #e67e22;
+    }
+  }
+  
+  .meanings-container {
+    margin-bottom: 20px;
+  }
+  
+  .meaning-section {
+    margin-bottom: 24px;
+    
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+  
+  .part-of-speech {
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: #8e44ad;
+    margin: 0 0 12px 0;
+    padding: 6px 12px;
+    background: #f8f4fd;
+    border-radius: 6px;
+    display: inline-block;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  
+  .definitions-list {
+    margin-left: 12px;
+  }
+  
+  .definition-item {
+    margin-bottom: 16px;
+    padding: 12px 0;
+    
+    &:not(:last-child) {
+      border-bottom: 1px solid #ecf0f1;
+    }
+  }
+  
+  .definition-text {
+    font-size: 1.05rem;
+    line-height: 1.6;
+    color: #2c3e50;
+    margin: 0 0 8px 0;
+    display: flex;
+    align-items: flex-start;
+  }
+  
+  .definition-number {
+    color: #3498db;
+    font-weight: 600;
+    margin-right: 8px;
+    min-width: 20px;
+  }
+  
+  .example-text {
+    font-size: 0.95rem;
+    color: #7f8c8d;
+    margin: 8px 0 8px 28px;
+    line-height: 1.5;
+    background: #f8f9fa;
+    padding: 8px 12px;
+    border-left: 3px solid #3498db;
+    border-radius: 4px;
+  }
+  
+  .synonyms {
+    font-size: 0.9rem;
+    color: #27ae60;
+    margin: 8px 0 0 28px;
+    
+    strong {
+      font-weight: 600;
+    }
+    
+    span {
+      color: #2ecc71;
+      font-weight: 500;
+    }
+  }
+  
+  .origin-section {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 2px solid #f0f0f0;
+    
+    h4 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #34495e;
+      margin: 0 0 8px 0;
+    }
+  }
+  
+  .origin-text {
+    font-size: 0.95rem;
+    color: #7f8c8d;
+    line-height: 1.5;
+    font-style: italic;
+    margin: 0;
+  }
+  
+  // Responsive design
+  @media (max-width: 768px) {
+    .word-card {
+      padding: 16px;
+      margin: 16px 0;
+    }
+  
+    .word-header {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 12px;
+    }
+  
+    .word-text {
+      font-size: 1.8rem;
+    }
+  
+    .word-actions {
+      align-self: flex-end;
+    }
+  }

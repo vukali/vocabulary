@@ -1,0 +1,85 @@
+@use "./variables.scss" as *;
+
+.Flashcard {
+  background: linear-gradient(135deg, #253e2f 70%, #202b22 100%);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  color: #fff;
+  max-width: 600px;
+  margin: 0 auto;
+  position: relative;
+  overflow: hidden;
+  // Keep a stable height so toggling showDetail doesn't shift layout
+  min-height: 180px;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #4caf50, #8bc34a);
+  }
+
+  .word {
+    font-size: 32px;
+    font-weight: 700;
+    margin-bottom: 16px;
+    text-align: center;
+    color: #fff;
+  }
+
+  .meaning {
+    font-size: 18px;
+    line-height: 1.6;
+    margin-bottom: 24px;
+    color: #e0e0e0;
+  }
+
+  .example {
+    font-style: italic;
+    color: #bdbdbd;
+    margin-bottom: 24px;
+    padding: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+  }
+
+  .buttonGroup {
+    display: flex;
+    gap: 12px;
+    margin-top: 24px;
+
+    button {
+      flex: 1;
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.3s ease;
+
+      &.nextButton {
+        background: linear-gradient(135deg, #4caf50, #8bc34a);
+        color: #fff;
+
+        &:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
+        }
+      }
+
+      &.flipButton {
+        background: rgba(255, 255, 255, 0.1);
+        color: #fff;
+
+        &:hover {
+          background: rgba(255, 255, 255, 0.2);
+        }
+      }
+    }
+  }
+}

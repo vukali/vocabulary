@@ -1,0 +1,39 @@
+// Colors
+$primary-color: #1976d2;
+$secondary-color: #dc004e;
+$background-color: #f5f5f5;
+$paper-color: #ffffff;
+
+// Typography
+$font-family: 'Inter', 'Roboto', 'Helvetica', 'Arial', sans-serif;
+
+// Spacing
+$spacing-unit: 8px;
+$container-padding: $spacing-unit * 3;
+
+// Breakpoints
+$breakpoint-sm: 600px;
+$breakpoint-md: 960px;
+$breakpoint-lg: 1280px;
+$breakpoint-xl: 1920px;
+
+// Z-index
+$z-index-drawer: 1200;
+$z-index-app-bar: 1100;
+$z-index-dialog: 1300;
+$z-index-snackbar: 1400;
+
+// Transitions
+$transition-duration: 0.3s;
+$transition-timing: ease-in-out;
+
+// Export all variables
+:export {
+  primaryColor: $primary-color;
+  secondaryColor: $secondary-color;
+  backgroundColor: $background-color;
+  paperColor: $paper-color;
+  fontFamily: $font-family;
+  spacingUnit: $spacing-unit;
+  containerPadding: $container-padding;
+} 
