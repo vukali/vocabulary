@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: vocab-app
-          image: harbor.watasoftware.com/demo/vocab-app:latest   # Cập nhật image tag
+          image: harbor.watasoftware.com/vocab-app:latest   # Cập nhật image tag
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3000
@@ -39,7 +39,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: vocab-app
-  namespace: demo-01
+  namespace: vocab
 spec:
   ingressClassName: traefik
   rules:
