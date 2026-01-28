@@ -3,10 +3,7 @@ pipeline {
         kubernetes {
             label 'jenkins-agent'
             defaultContainer 'jnlp'
-            containers {
-                // Thêm container Docker-in-Docker
-                containerTemplate(name: 'docker', image: 'docker:19.03.12-dind', ttyEnabled: true, command: 'cat')
-            }
+            containerTemplate(name: 'docker', image: 'docker:19.03.12-dind', ttyEnabled: true, command: 'cat')
         }
     }
 
@@ -20,9 +17,9 @@ pipeline {
         stage('Build') {
             steps {
                 script {
-                    // Sử dụng Docker-in-Docker
+                    // Sử dụng Docker-in-Docker container
                     container('docker') {
-                        sh 'docker build -t $REGISTRY/$IMAGE_NAME:$IMAGE_TAG .'
+                        sh 'docker build -t ${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG} .'
                     }
                 }
             }
@@ -32,9 +29,9 @@ pipeline {
             steps {
                 script {
                     container('docker') {
-                        withCredentials([usernamePassword(credentialsId: 'harbor-credentials', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
-                            sh "echo $DOCKER_PASSWORD | docker login $REGISTRY -u $DOCKER_USERNAME --password-stdin"
-                            sh "docker push $REGISTRY/$IMAGE_NAME:$IMAGE_TAG"
+                        withCredentials([usernamePassword(credentialsId: 'vudt', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
+                            sh "echo ${DOCKER_PASSWORD} | docker login ${REGISTRY} -u ${DOCKER_USERNAME} --password-stdin"
+                            sh "docker push ${REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}"
                         }
                     }
                 }
