@@ -52,7 +52,9 @@ spec:
     stages {
         stage('Checkout') {
             steps {
-                checkout scm
+                retry(3) {  // Retry checkout up to 3 times
+                    checkout scm
+                }
             }
         }
 
@@ -80,6 +82,9 @@ EOF
     post {
         success {
             echo "Build and push to Harbor completed."
+        }
+        failure {
+            echo "Build failed. Please check the logs for more details."
         }
     }
 }
