@@ -16,7 +16,7 @@ spec:
       containers:
         - name: vocab-app
           image: harbor.watasoftware.com/vocab-app/vocab-app:latest
-          imagePullPolicy: Always
+          #imagePullPolicy: Always
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3000

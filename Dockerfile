@@ -1,5 +1,5 @@
 # Build stage
-FROM node:18-alpine AS builder
+FROM node:20-alpine AS builder
 
 # Set working directory
 WORKDIR /app
@@ -8,8 +8,7 @@ WORKDIR /app
 COPY package*.json ./ 
 
 # Install git and dependencies
-RUN apk add --no-cache git && npm ci
-
+    RUN apk add --no-cache git && npm install
 # Copy source code
 COPY . .
 
@@ -17,7 +16,7 @@ COPY . .
 RUN npm run build
 
 # Production stage
-FROM node:18-alpine
+FROM node:20-alpine
 
 # Set working directory
 WORKDIR /app
@@ -30,7 +29,7 @@ COPY --from=builder /app/dist /app/dist
 
 # Install production dependencies
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm install --production
 
 # Expose port
 EXPOSE 3000

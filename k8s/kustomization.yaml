@@ -6,5 +6,5 @@ resources:
 - deployment.yaml   # File YAML của ứng dụng vocab-app
 
 images:
-  - name: harbor.watasoftware.com/vocab-app
+  - name: harbor.watasoftware.com/vocab-app/vocab-app
     newTag: f2b7ac4   # Cập nhật tag mới từ Jenkins build
