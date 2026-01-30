@@ -13,11 +13,6 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  Drawer,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemIcon,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -54,19 +49,12 @@ import {
   ArcElement,
 } from "chart.js";
 import { motion, AnimatePresence } from "framer-motion";
+import { vocabData, categories } from "./data/vocab";
 import Flashcard from "./components/Flashcard";
 import QuizForm from "./components/QuizForm";
-import { vocabData, categories } from './data/vocab';
-import {
-  applyReview,
-  getNextCardWord,
-  getProgressSummary,
-  loadSrsState,
-  makeCardId,
-  saveSrsState,
-} from "./utils/srs";
+import { loadSrsState, saveSrsState, getNextCardWord, applyReview, getProgressSummary, makeCardId } from "./utils/srs";
 
-// Đăng ký các components của Chart.js
+// Register Chart.js components
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -78,23 +66,15 @@ ChartJS.register(
   ArcElement
 );
 
-// Base theme configuration (we'll override mode with state)
+// Base theme
 const baseTheme = createTheme({
   palette: {
-    mode: "dark",
     primary: {
-      main: "#22c55e", // teal-green
+      main: "#43e97b",
     },
     secondary: {
-      main: "#38bdf8", // cyan
+      main: "#4facfe",
     },
-    background: {
-      default: "#020617", // near-black with blue hint
-      paper: "#0f172a", // slate-900
-    },
-  },
-  typography: {
-    fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
   },
 });
 
@@ -105,113 +85,10 @@ const variants = {
   exit: { opacity: 0, y: -20 },
 };
 
-// Styles
-const getStyles = (theme) => ({
-  appBar: {
-    bgcolor: theme.palette.mode === "dark" ? "#222d24" : "#fff",
-    boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
-    transition: "background-color 0.3s",
-  },
-  toolbar: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  categorySelect: {
-    bgcolor: theme.palette.mode === "dark" ? "#333" : "#f5f5f5",
-    borderRadius: 1,
-    minWidth: 150,
-    transition: "background-color 0.3s",
-    "& .MuiOutlinedInput-notchedOutline": {
-      borderColor: theme.palette.mode === "dark" ? "#555" : "#ddd",
-    },
-    "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
-      borderColor: "#43e97b",
-    },
-    "& .MuiSvgIcon-root": {
-      color: "#43e97b",
-    },
-  },
-  container: {
-    minHeight: "calc(100vh - 128px)",
-    bgcolor: theme.palette.mode === "dark" ? "#191f1e" : "#f8f9fa",
-    mt: 3,
-    mb: 3,
-    borderRadius: 2,
-    p: { xs: 2, sm: 3, md: 4 },
-    display: "flex",
-    gap: { xs: 3, md: 6 },
-    flexWrap: "wrap",
-    flexDirection: { xs: "column", md: "row" },
-    justifyContent: "center",
-    alignItems: "flex-start",
-    transition: "background-color 0.3s",
-  },
-  mainContent: {
-    display: "flex",
-    gap: { xs: 3, md: 6 },
-    alignItems: "center",
-    maxWidth: { xs: "100%", md: "60vw" },
-    flex: "1 1 600px",
-    flexWrap: "wrap",
-    justifyContent: "center",
-  },
-  statsContainer: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 3,
-    width: { xs: "100%", md: "300px" },
-  },
-  paper: {
-    p: { xs: 2, sm: 3 },
-    bgcolor: theme.palette.mode === "dark" ? "#222d24" : "#fff",
-    borderRadius: 2,
-    color: theme.palette.mode === "dark" ? "#fff" : "#333",
-    boxShadow: "0 4px 20px rgba(0,0,0,0.1)",
-    transition: "all 0.3s",
-    "&:hover": {
-      transform: "translateY(-2px)",
-      boxShadow: "0 6px 25px rgba(0,0,0,0.15)",
-    },
-  },
-  chartContainer: {
-    height: { xs: 150, sm: 200 },
-    position: "relative",
-  },
-  goalDialog: {
-    "& .MuiDialog-paper": {
-      bgcolor: theme.palette.mode === "dark" ? "#222d24" : "#fff",
-      color: theme.palette.mode === "dark" ? "#fff" : "#333",
-      borderRadius: 2,
-      transition: "background-color 0.3s",
-    },
-  },
-  goalTextField: {
-    "& .MuiOutlinedInput-root": {
-      color: theme.palette.mode === "dark" ? "#fff" : "#333",
-      "& fieldset": {
-        borderColor: theme.palette.mode === "dark" ? "#555" : "#ddd",
-      },
-      "&:hover fieldset": {
-        borderColor: "#43e97b",
-      },
-      "&.Mui-focused fieldset": {
-        borderColor: "#43e97b",
-      },
-    },
-    "& .MuiInputLabel-root": {
-      color: theme.palette.mode === "dark" ? "#c3ffe1" : "#666",
-    },
-  },
-  themeSwitch: {
-    color: theme.palette.mode === "dark" ? "#fff" : "#333",
-    transition: "color 0.3s",
-  },
-});
-
 function App() {
+  console.log('App rendering');
   // Theme state
-  const [mode, setMode] = useState < "light" | "dark" > ("dark");
+  const [mode, setMode] = useState<"light" | "dark">("dark");
   const theme = useMemo(
     () =>
       createTheme({
@@ -227,8 +104,6 @@ function App() {
       }),
     [mode]
   );
-  const styles = getStyles(theme);
-  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
 
   // App states
   const [category, setCategory] = useState("all");
@@ -333,7 +208,7 @@ function App() {
       setSrsMeta(getProgressSummary(category, filteredVocab, next));
     }
 
-    // Cập nhật thống kê
+    // Update stats
     setStats(prev => {
       const newStats = { ...prev };
       newStats.totalWords += 1;
@@ -383,7 +258,7 @@ function App() {
       return newStats;
     });
 
-    // Lưu lịch sử
+    // Save history
     setHistory(prev => [...prev, {
       word: currentWord.word,
       meaning: currentWord.meaning,
@@ -393,10 +268,10 @@ function App() {
       date: today
     }]);
 
-    // Chuyển sang từ tiếp theo
+    // Next word
     const nextWord = pickNextWord(next);
     setCurrentWord(nextWord);
-    setStartTime(Date.now()); // Reset thời gian bắt đầu cho từ mới
+    setStartTime(Date.now());
   }, [category, currentWord, filteredVocab, pickNextWord, srsState, startTime, studyMode]);
 
   // Handle show detail
@@ -412,7 +287,7 @@ function App() {
     setShowNotification(true);
   }, []);
 
-  // Prepare chart data
+  // Chart data
   const lineChartData = {
     labels: stats.dailyProgress.slice(-7).map(day => day.date),
     datasets: [
@@ -444,7 +319,7 @@ function App() {
     ],
   };
 
-  // Load SRS + pick an initial word when category changes
+  // Load SRS + pick initial word when category changes
   useEffect(() => {
     const loaded = loadSrsState(category);
     setSrsState(loaded);
@@ -453,7 +328,7 @@ function App() {
     setCurrentWord(first);
   }, [category]);
 
-  // Add statistics for difficult words
+  // Stats
   const difficultWordsCount = srsMeta.due;
   const masteredWordsCount = srsMeta.mastered;
   const totalWordsCount = srsMeta.total || filteredVocab.length;
@@ -653,15 +528,11 @@ function App() {
 
         <Snackbar
           open={showNotification}
-          autoHideDuration={6000}
+          autoHideDuration={4000}
           onClose={() => setShowNotification(false)}
-          anchorOrigin={{ vertical: "top", horizontal: "center" }}
+          anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
         >
-          <Alert
-            onClose={() => setShowNotification(false)}
-            severity="info"
-            sx={{ width: "100%" }}
-          >
+          <Alert onClose={() => setShowNotification(false)} severity="info" sx={{ width: "100%" }}>
             {notificationMessage}
           </Alert>
         </Snackbar>
