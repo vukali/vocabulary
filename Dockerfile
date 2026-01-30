@@ -7,8 +7,8 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./ 
 
-# Install git and dependencies
-RUN apk add --no-cache git && npm ci
+# Install git and dependencies (npm install: works without package-lock.json)
+RUN apk add --no-cache git && npm install
 
 # Copy source code
 COPY . .
@@ -30,7 +30,7 @@ COPY --from=builder /app/dist /app/dist
 
 # Install production dependencies
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm install --omit=dev
 
 # Expose port (4173 = Vite preview default)
 EXPOSE 4173
