@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "8080:3000"
+      - "8080:4173"
     environment:
       - NODE_ENV=production
     restart: unless-stopped

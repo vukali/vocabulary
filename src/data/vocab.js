@@ -1,13 +1,34 @@
-import allVocab from './allvocab.json';
-import advancedVocab from './advancedVocab.json';
-import communicationVocab from './communicationVocab.json';
-import itVocab from './itVocab.json';
-
 export const vocabData = {
-  all: allVocab.words,
-  advanced: advancedVocab.words,
-  communication: communicationVocab.words,
-  it: itVocab.words
+  all: [
+    {
+      "word": "hello",
+      "meaning": "xin chào",
+      "phonetic": "/həˈləʊ/",
+      "audio": "https://example.com/hello.mp3"
+    },
+    {
+      "word": "world",
+      "meaning": "thế giới",
+      "phonetic": "/wɜːld/",
+      "audio": "https://example.com/world.mp3"
+    },
+    {
+      "word": "computer",
+      "meaning": "máy tính",
+      "phonetic": "/kəmˈpjuːtər/",
+      "audio": "https://example.com/computer.mp3"
+    },
+    // Add more words here
+  ],
+  advanced: [
+    // Add advanced words
+  ],
+  communication: [
+    // Add communication words
+  ],
+  it: [
+    // Add IT words
+  ]
 };
 
 export const categories = [

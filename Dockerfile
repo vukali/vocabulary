@@ -1,5 +1,5 @@
 # Build stage
-FROM node:20-alpine AS builder
+FROM node:18-alpine AS builder
 
 # Set working directory
 WORKDIR /app
@@ -8,7 +8,8 @@ WORKDIR /app
 COPY package*.json ./ 
 
 # Install git and dependencies
-    RUN apk add --no-cache git && npm install
+RUN apk add --no-cache git && npm ci
+
 # Copy source code
 COPY . .
 
@@ -16,7 +17,7 @@ COPY . .
 RUN npm run build
 
 # Production stage
-FROM node:20-alpine
+FROM node:18-alpine
 
 # Set working directory
 WORKDIR /app
@@ -27,11 +28,12 @@ RUN apk add --no-cache git
 # Copy built assets from builder stage
 COPY --from=builder /app/dist /app/dist
 
-# Copy package.json for scripts
-COPY package.json ./
+# Install production dependencies
+COPY package*.json ./
+RUN npm ci --only=production
 
-# Install vite globally for preview
-RUN npm install -g vite
+# Expose port (4173 = Vite preview default)
+EXPOSE 4173
 
 # Start the application
-CMD ["npm", "start"]
+CMD ["npm", "run", "start"]
