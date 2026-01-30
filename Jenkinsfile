@@ -44,6 +44,7 @@ spec:
         HARBOR_PROJECT = 'vocab-app'
         IMAGE_NAME = 'vocab-app'
         IMAGE_REPO = "${HARBOR_HOST}/${HARBOR_PROJECT}/${IMAGE_NAME}"
+        IMAGE_TAG = "${env.BUILD_NUMBER}"
         SKIP_MARKER = '[skip-jenkins]'
         BOT_EMAIL = 'jenkins@local'
         SKIP_BUILD = 'false'
