@@ -21,7 +21,7 @@ spec:
       readOnly: false
   - name: tools
     image: alpine:3.20
-    command: ["/bin/sh", "-c", "apk add --no-cache git"]
+    command: ["/bin/sh", "-c", "apk add --no-cache git && sleep infinity"]
     tty: true
     volumeMounts:
     - name: workspace-volume
