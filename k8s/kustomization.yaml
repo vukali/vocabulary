@@ -7,4 +7,4 @@ resources:
 
 images:
   - name: harbor.watasoftware.com/vocab-app/vocab-app
-    newTag: f2b7ac4   # Cập nhật tag mới từ Jenkins build
+    newTag: "24"

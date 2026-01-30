@@ -27,12 +27,11 @@ RUN apk add --no-cache git
 # Copy built assets from builder stage
 COPY --from=builder /app/dist /app/dist
 
-# Install production dependencies
-COPY package*.json ./
-RUN npm install --production
+# Copy package.json for scripts
+COPY package.json ./
 
-# Expose port
-EXPOSE 3000
+# Install vite globally for preview
+RUN npm install -g vite
 
 # Start the application
 CMD ["npm", "start"]
