@@ -62,7 +62,7 @@ export interface Phonetic {
   class DictionaryAPI {
     private static readonly BASE_URL = 'https://api.dictionaryapi.dev/api/v2/entries/en';
     private static readonly WORDS_API_URL = 'https://wordsapiv1.p.rapidapi.com/words';
-    private static readonly WORDS_API_KEY = process.env.REACT_APP_WORDS_API_KEY || '';
+    private static readonly WORDS_API_KEY = typeof window !== 'undefined' ? (window as any).REACT_APP_WORDS_API_KEY || '' : '';
   
     // Lấy định nghĩa từ Dictionary API (miễn phí)
     static async getWordDefinition(word: string): Promise<WordData> {

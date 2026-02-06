@@ -4,20 +4,20 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "start": "serve -s dist -l 4173",
+    "start": "http-server dist -p 3000 -a 0.0.0.0 -s",
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview"
   },
   "dependencies": {
-    "serve": "^14.2.4",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
     "@mui/icons-material": "^5.15.10",
     "@mui/material": "^5.18.0",
     "chart.js": "^4.4.1",
     "framer-motion": "^11.0.5",
+    "http-server": "^14.1.1",
     "react": "^18.2.0",
     "react-chartjs-2": "^5.2.0",
     "react-dom": "^18.2.0"

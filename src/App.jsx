@@ -48,8 +48,76 @@ import {
   Legend,
   ArcElement,
 } from "chart.js";
-import { motion, AnimatePresence } from "framer-motion";
-import { vocabData, categories } from "./data/vocab";
+import { categories } from "./data/vocab";
+
+const vocabData = {
+  all: [
+    {
+      "word": "hello",
+      "meaning": "xin chào",
+      "phonetic": "/həˈləʊ/",
+      "audio": "https://example.com/hello.mp3"
+    },
+    {
+      "word": "world",
+      "meaning": "thế giới",
+      "phonetic": "/wɜːld/",
+      "audio": "https://example.com/world.mp3"
+    },
+    {
+      "word": "computer",
+      "meaning": "máy tính",
+      "phonetic": "/kəmˈpjuːtər/",
+      "audio": "https://example.com/computer.mp3"
+    },
+    {
+      "word": "book",
+      "meaning": "sách",
+      "phonetic": "/bʊk/",
+      "audio": "https://example.com/book.mp3"
+    },
+    {
+      "word": "student",
+      "meaning": "học sinh",
+      "phonetic": "/ˈstjuːdənt/",
+      "audio": "https://example.com/student.mp3"
+    },
+    {
+      "word": "teacher",
+      "meaning": "giáo viên",
+      "phonetic": "/ˈtiːtʃər/",
+      "audio": "https://example.com/teacher.mp3"
+    },
+    {
+      "word": "friend",
+      "meaning": "bạn bè",
+      "phonetic": "/frend/",
+      "audio": "https://example.com/friend.mp3"
+    },
+    {
+      "word": "family",
+      "meaning": "gia đình",
+      "phonetic": "/ˈfæməli/",
+      "audio": "https://example.com/family.mp3"
+    },
+    {
+      "word": "house",
+      "meaning": "ngôi nhà",
+      "phonetic": "/haʊs/",
+      "audio": "https://example.com/house.mp3"
+    },
+    {
+      "word": "school",
+      "meaning": "trường học",
+      "phonetic": "/skuːl/",
+      "audio": "https://example.com/school.mp3"
+    }
+  ],
+  advanced: [],
+  communication: [],
+  it: []
+};
+console.log('vocabData:', vocabData);
 import Flashcard from "./components/Flashcard";
 import QuizForm from "./components/QuizForm";
 import { loadSrsState, saveSrsState, getNextCardWord, applyReview, getProgressSummary, makeCardId } from "./utils/srs";
@@ -66,18 +134,6 @@ ChartJS.register(
   ArcElement
 );
 
-// Base theme
-const baseTheme = createTheme({
-  palette: {
-    primary: {
-      main: "#43e97b",
-    },
-    secondary: {
-      main: "#4facfe",
-    },
-  },
-});
-
 // Animation variants
 const variants = {
   hidden: { opacity: 0, y: 20 },
@@ -92,13 +148,13 @@ function App() {
   const theme = useMemo(
     () =>
       createTheme({
-        ...baseTheme,
         palette: {
-          ...baseTheme.palette,
           mode,
-          background: {
-            default: mode === "dark" ? "#020617" : "#f4f7ff",
-            paper: mode === "dark" ? "#0f172a" : "#ffffff",
+          primary: {
+            main: "#1976d2",
+          },
+          secondary: {
+            main: "#dc004e",
           },
         },
       }),
@@ -127,7 +183,7 @@ function App() {
   const [showNotification, setShowNotification] = useState(false);
   const [notificationMessage, setNotificationMessage] = useState("");
   const [studyMode, setStudyMode] = useState("en-to-vi");
-  const [currentWord, setCurrentWord] = useState(null);
+  const [currentWord, setCurrentWord] = useState({ word: "hello", meaning: "xin chào", phonetic: "/həˈləʊ/", audio: "" });
   const [srsState, setSrsState] = useState({});
   const [srsMeta, setSrsMeta] = useState({ total: 0, learned: 0, mastered: 0, due: 0 });
 
@@ -321,10 +377,15 @@ function App() {
 
   // Load SRS + pick initial word when category changes
   useEffect(() => {
+    console.log('category:', category);
+    console.log('Loading SRS for category:', category);
     const loaded = loadSrsState(category);
+    console.log('Loaded SRS state:', loaded);
     setSrsState(loaded);
+    console.log('filteredVocab:', filteredVocab);
     setSrsMeta(getProgressSummary(category, filteredVocab, loaded));
     const first = pickNextWord(loaded);
+    console.log('Picked first word:', first);
     setCurrentWord(first);
   }, [category]);
 
@@ -335,209 +396,12 @@ function App() {
   const currentCard = currentWord?.word ? srsState[makeCardId(category, currentWord.word)] : null;
 
   return (
-    <MuiThemeProvider theme={theme}>
-      <Box sx={{ bgcolor: "background.default", minHeight: "100vh" }}>
-        <AppBar position="static" color="default" elevation={0}>
-          <Toolbar>
-            <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-              Vocabulary App
-            </Typography>
-            <FormControl size="small" sx={{ minWidth: 120, mr: 2 }}>
-              <InputLabel>Category</InputLabel>
-              <Select
-                value={category}
-                label="Category"
-                onChange={(e) => setCategory(e.target.value)}
-              >
-                {categories.map((cat) => (
-                  <MenuItem key={cat.key} value={cat.key}>
-                    {cat.label}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <IconButton onClick={() => setMode(mode === "light" ? "dark" : "light")}>
-              {mode === "light" ? <Brightness4Icon /> : <Brightness7Icon />}
-            </IconButton>
-          </Toolbar>
-        </AppBar>
-
-        <Container maxWidth="lg" sx={{ py: 4 }}>
-          <Grid container spacing={4}>
-            <Grid item xs={12} md={8}>
-              <Box sx={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    key={currentWord?.word}
-                    variants={variants}
-                    initial="hidden"
-                    animate="visible"
-                    exit="exit"
-                    transition={{ duration: 0.5 }}
-                  >
-                    <Flashcard
-                      word={studyMode === "en-to-vi" ? currentWord?.word : currentWord?.meaning}
-                      phonetic={currentWord?.phonetic}
-                      audio={currentWord?.audio}
-                      showDetail={showDetail}
-                      meta={{ level: currentCard?.level ?? 0, dueAt: currentCard?.dueAt }}
-                    />
-                  </motion.div>
-                </AnimatePresence>
-
-                <motion.div
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.5, delay: 0.2 }}
-                >
-                  <QuizForm
-                    question={studyMode === "en-to-vi" ? currentWord?.word : currentWord?.meaning}
-                    answer={studyMode === "en-to-vi" ? currentWord?.meaning : currentWord?.word}
-                    label={studyMode === "en-to-vi" ? "Enter Vietnamese meaning" : "Enter English word"}
-                    onNext={handleAnswer}
-                    onShowDetail={handleShowDetail}
-                  />
-                </motion.div>
-              </Box>
-            </Grid>
-
-            <Grid item xs={12} md={4}>
-              <Box sx={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                <Paper sx={{ p: 3 }}>
-                  <Typography variant="h6" gutterBottom>
-                    Learning Statistics
-                  </Typography>
-                  <Grid container spacing={2}>
-                    <Grid item xs={6}>
-                      <Typography variant="body2">Total Words:</Typography>
-                      <Typography variant="h4">{stats.totalWords}</Typography>
-                    </Grid>
-                    <Grid item xs={6}>
-                      <Typography variant="body2">Correct:</Typography>
-                      <Typography variant="h4">{stats.correctAnswers}</Typography>
-                    </Grid>
-                    <Grid item xs={6}>
-                      <Typography variant="body2">English -&gt; Vietnamese:</Typography>
-                      <Typography variant="h4">
-                        {stats.enToVi.correct}/{stats.enToVi.total}
-                      </Typography>
-                    </Grid>
-                    <Grid item xs={6}>
-                      <Typography variant="body2">Vietnamese -&gt; English:</Typography>
-                      <Typography variant="h4">
-                        {stats.viToEn.correct}/{stats.viToEn.total}
-                      </Typography>
-                    </Grid>
-                    <Grid item xs={12}>
-                      <Typography variant="body2">Average Time:</Typography>
-                      <Typography variant="h4">{stats.averageTime.toFixed(1)}s</Typography>
-                    </Grid>
-                    <Grid item xs={4}>
-                      <Typography variant="body2">Mastered Words:</Typography>
-                      <Typography variant="h4">{masteredWordsCount}/{totalWordsCount}</Typography>
-                    </Grid>
-                    <Grid item xs={4}>
-                      <Typography variant="body2">Difficult Words:</Typography>
-                      <Typography variant="h4">{difficultWordsCount}</Typography>
-                    </Grid>
-                    <Grid item xs={4}>
-                      <Typography variant="body2">Progress:</Typography>
-                      <Typography variant="h4">
-                        {Math.round((masteredWordsCount / totalWordsCount) * 100)}%
-                      </Typography>
-                    </Grid>
-                  </Grid>
-                </Paper>
-
-                <Paper sx={{ p: 3 }}>
-                  <Typography variant="h6" gutterBottom>
-                    Learning Progress
-                  </Typography>
-                  <Box sx={{ height: 200 }}>
-                    <Line
-                      data={lineChartData}
-                      options={{
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                          legend: {
-                            position: "bottom",
-                          },
-                        },
-                      }}
-                    />
-                  </Box>
-                </Paper>
-
-                <Paper sx={{ p: 3 }}>
-                  <Typography variant="h6" gutterBottom>
-                    Correct/Incorrect Ratio
-                  </Typography>
-                  <Box sx={{ height: 200 }}>
-                    <Doughnut
-                      data={doughnutChartData}
-                      options={{
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                          legend: {
-                            position: "bottom",
-                          },
-                        },
-                      }}
-                    />
-                  </Box>
-                </Paper>
-              </Box>
-            </Grid>
-          </Grid>
-        </Container>
-
-        <Dialog open={showGoalDialog} onClose={() => setShowGoalDialog(false)}>
-          <DialogTitle>Set Learning Goals</DialogTitle>
-          <DialogContent>
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 2, pt: 2 }}>
-              <TextField
-                label="Words per day"
-                type="number"
-                value={goals.dailyWords}
-                onChange={(e) => setGoals({ ...goals, dailyWords: parseInt(e.target.value) || 0 })}
-              />
-              <TextField
-                label="Accuracy (%)"
-                type="number"
-                value={goals.dailyAccuracy}
-                onChange={(e) => setGoals({ ...goals, dailyAccuracy: parseInt(e.target.value) || 0 })}
-              />
-              <TextField
-                label="Reminder Time"
-                type="time"
-                value={goals.reminderTime}
-                onChange={(e) => setGoals({ ...goals, reminderTime: e.target.value })}
-                InputLabelProps={{ shrink: true }}
-              />
-            </Box>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setShowGoalDialog(false)}>Cancel</Button>
-            <Button onClick={() => handleSetGoals(goals)} variant="contained">
-              Save
-            </Button>
-          </DialogActions>
-        </Dialog>
-
-        <Snackbar
-          open={showNotification}
-          autoHideDuration={4000}
-          onClose={() => setShowNotification(false)}
-          anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-        >
-          <Alert onClose={() => setShowNotification(false)} severity="info" sx={{ width: "100%" }}>
-            {notificationMessage}
-          </Alert>
-        </Snackbar>
-      </Box>
-    </MuiThemeProvider>
+    <div style={{ color: 'black', background: 'white', padding: '20px' }}>
+      <h1>Vocabulary App</h1>
+      <p>Current word: {currentWord ? currentWord.word : 'None'}</p>
+      <p>Category: {category}</p>
+      <p>Filtered vocab length: {filteredVocab.length}</p>
+    </div>
   );
 }
 

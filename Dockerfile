@@ -32,8 +32,8 @@ COPY --from=builder /app/dist /app/dist
 COPY package*.json ./
 RUN npm install --omit=dev
 
-# Expose port (4173 = Vite preview default)
-EXPOSE 4173
+# Expose port
+EXPOSE 3000
 
 # Start the application
 CMD ["npm", "run", "start"]
