@@ -41,7 +41,6 @@ const LearnPage: React.FC = () => {
   }
 
   const w = words[idx];
-  const question = lang === "en" ? w.word : w.meaning;
   const answer = lang === "en" ? w.meaning : w.word;
   const label = lang === "en" ? "Nghĩa tiếng Việt?" : "English?";
 
@@ -57,11 +56,11 @@ const LearnPage: React.FC = () => {
     >
       <Box width={400} maxWidth="90vw">
         <QuizForm
-          question={question}
+          locale={lang}
           answer={answer}
           label={label}
-          onNext={() => setIdx(idx + 1)}
-          onShowDetail={() => console.log(`Details for: ${question}`)}
+          onNext={(isCorrect) => setIdx(idx + 1)}
+          onShowDetail={(show) => console.log(`Details for: ${answer}`)}
         />
         <Box mt={3}>
           <LinearProgress
