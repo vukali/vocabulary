@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "${VOCAB_APP_PORT:-8081}:80"
+      - "${VOCAB_APP_PORT:-5173}:5173"
     environment:
       - NODE_ENV=production
     restart: unless-stopped
