@@ -141,3 +141,4 @@ export function getProgressSummary(category: string, words: { word: string }[], 
     return { total, learned, mastered, due };
 }
 
+

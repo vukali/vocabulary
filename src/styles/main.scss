@@ -1,5 +1,28 @@
+html,
+body,
+#root {
+  height: 100%;
+}
+
 body {
   background: radial-gradient(circle at top, #0b1120 0%, #020617 55%, #000 100%);
   min-height: 100vh;
-  overflow: hidden;
+  /* allow page scrolling on small screens */
+  overflow-y: auto;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Ensure flex children can shrink and long words wrap instead of overflowing */
+.MuiBox-root,
+.MuiStack-root,
+.MuiPaper-root {
+  min-width: 0;
+}
+
+.MuiTypography-root,
+.word-card,
+.Flashcard,
+.QuizForm {
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }

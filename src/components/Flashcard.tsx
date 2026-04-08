@@ -1,149 +1,322 @@
-import React, { useState } from "react";
-import styles from "../styles/Flashcard.module.scss";
+import React from "react";
+import { Box, Chip, IconButton, Stack, Typography, alpha } from "@mui/material";
 import VolumeUpIcon from "@mui/icons-material/VolumeUp";
-import { IconButton, Typography, Box } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
 
 interface FlashcardProps {
-  word: string;
+  locale: string;
+  prompt?: string;
+  answer?: string;
   phonetic?: string;
   audio?: string;
   showDetail: boolean;
+  studyMode: string;
+  stageLabel?: string;
+  categoryLabel?: string;
+  imageHint?: string;
+  scene?: string;
+  partOfSpeech?: string;
+  grammarTag?: string;
+  alternatives?: string[];
+  learnerHint?: string;
+  emptyText?: string;
   meta?: {
     level?: number;
     dueAt?: number;
   };
 }
 
+const copy = {
+  vi: {
+    lookAt: "Mắt đang nhìn",
+    en: "Tiếng Anh",
+    vi: "Tiếng Việt",
+    imageHint: "Hình gợi nhớ",
+    answer: "Đáp án đúng",
+    hiddenAnswer: "...",
+    alternatives: "Cũng chấp nhận",
+    hint: "Mẹo nhớ",
+    typeFirst: "Tự gõ đáp án trước rồi mới xem.",
+    nextReview: "Thẻ này sẽ quay lại",
+    ready: "sẵn sàng ôn",
+    level: "Level",
+  },
+  en: {
+    lookAt: "Current view",
+    en: "English",
+    vi: "Vietnamese",
+    imageHint: "Image cue",
+    answer: "Correct answer",
+    hiddenAnswer: "...",
+    alternatives: "Also accepted",
+    hint: "Memory tip",
+    typeFirst: "Type your answer before revealing it.",
+    nextReview: "This card returns",
+    ready: "ready for review",
+    level: "Level",
+  },
+};
+
+const formatDue = (dueAt?: number, locale = "vi") => {
+  if (!dueAt) return locale === "vi" ? "sẵn sàng ôn" : "ready for review";
+  const diff = dueAt - Date.now();
+  if (diff <= 0) return locale === "vi" ? "đã đến hạn" : "already due";
+  const minutes = Math.round(diff / 60000);
+  if (minutes < 60) return locale === "vi" ? `${minutes} phút nữa` : `in ${minutes} min`;
+  const hours = Math.round(minutes / 60);
+  return locale === "vi" ? `${hours} giờ nữa` : `in ${hours} hours`;
+};
+
 const Flashcard: React.FC<FlashcardProps> = ({
-  word,
+  locale,
+  prompt,
+  answer,
   phonetic,
   audio,
   showDetail,
+  studyMode,
+  stageLabel,
+  categoryLabel,
+  imageHint,
+  scene,
+  partOfSpeech,
+  grammarTag,
+  alternatives,
+  learnerHint,
+  emptyText,
   meta,
 }) => {
-  const [isFlipped, setIsFlipped] = useState<boolean>(false);
+  const theme = useTheme();
+  const t = copy[locale as "vi" | "en"] || copy.vi;
 
-  // Phát âm toàn bộ từ
   const speakWord = () => {
+    const wordToSpeak = studyMode === "en-to-vi" ? prompt : answer;
+    if (!wordToSpeak) return;
+
     if (audio) {
       const sound = new Audio(audio);
-      sound.play();
-    } else if ("speechSynthesis" in window) {
-      const utterance = new window.SpeechSynthesisUtterance(word);
+      sound.play().catch(() => undefined);
+      return;
+    }
+
+    if ("speechSynthesis" in window) {
+      const utterance = new SpeechSynthesisUtterance(wordToSpeak);
       utterance.lang = "en-US";
+      window.speechSynthesis.cancel();
       window.speechSynthesis.speak(utterance);
     }
   };
 
-  // Phát âm từng âm tiết của phiên âm
-  const speakPhonetic = (phoneticStr: string) => {
-    if (!phoneticStr) return;
-    const phonemes = phoneticStr.trim().split(/\s+/); // tách theo khoảng trắng
-    let i = 0;
-
-    function playNext() {
-      if (i >= phonemes.length) return;
-      const utterance = new SpeechSynthesisUtterance(phonemes[i]);
-      utterance.lang = "en-US";
-      utterance.onend = () => {
-        i++;
-        playNext();
-      };
-      window.speechSynthesis.speak(utterance);
-    }
-    playNext();
-  };
-
-  const handleFlip = () => {
-    setIsFlipped(!isFlipped);
-  };
-
-  if (!showDetail) {
+  if (!prompt) {
     return (
       <Box
-        className={styles.Flashcard}
         sx={{
-          opacity: 0.5,
-          fontStyle: "italic",
-          color: "#999",
-          minWidth: 300,
-          minHeight: 150,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
+          borderRadius: 4,
+          p: 4,
           textAlign: "center",
+          bgcolor: alpha(theme.palette.text.primary, 0.04),
         }}
       >
-        <Typography variant="h6" align="center">
-          Input your answer to see the vocabulary details
-        </Typography>
+        <Typography color="text.secondary">{emptyText}</Typography>
       </Box>
     );
   }
 
   return (
     <Box
-      className={`${styles.Flashcard} ${isFlipped ? styles.flipped : ""}`}
-      onClick={handleFlip}
+      sx={{
+        borderRadius: 5,
+        p: { xs: 1.6, md: 1.9 },
+        background:
+          theme.palette.mode === "dark"
+            ? "linear-gradient(180deg, rgba(24, 43, 39, 0.98), rgba(15, 24, 22, 0.98))"
+            : "linear-gradient(180deg, rgba(255, 251, 245, 0.99), rgba(246, 237, 222, 0.99))",
+        border: "none",
+        boxShadow:
+          theme.palette.mode === "dark"
+            ? "0 16px 30px rgba(0, 0, 0, 0.16)"
+            : "0 16px 30px rgba(130, 111, 82, 0.08)",
+      }}
     >
-      <Box
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: 1,
-          mb: 1,
-        }}
-      >
-        <Typography variant="h2" className={styles.word} fontWeight={900}>
-          {word}
-        </Typography>
-        <IconButton onClick={speakWord} size="large" aria-label="Phát âm từ">
-          <VolumeUpIcon sx={{ fontSize: "2rem", color: "#43e97b" }} />
-        </IconButton>
-      </Box>
+      <Stack spacing={1.35}>
+        <Stack direction="row" spacing={0.8} flexWrap="wrap" useFlexGap>
+          <Chip size="small" label={categoryLabel || "Flashcard"} variant="outlined" />
+          {stageLabel && <Chip size="small" label={stageLabel} color="secondary" variant="outlined" />}
+          {partOfSpeech && <Chip size="small" label={partOfSpeech} variant="outlined" />}
+          {grammarTag && <Chip size="small" label={grammarTag} variant="outlined" />}
+          <Chip size="small" label={`${t.level} ${meta?.level ?? 0}`} variant="outlined" />
+        </Stack>
 
-      {phonetic && (
         <Box
           sx={{
-            input: {
-              color: "#c3ffe1",
-              fontWeight: 600,
-              fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
-            },
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 1,
+            borderRadius: 4,
+            p: { xs: 1.25, md: 1.45 },
+            bgcolor:
+              theme.palette.mode === "dark"
+                ? alpha("#ffffff", 0.02)
+                : alpha("#ffffff", 0.45),
+            border: "none",
+            boxShadow: "none",
           }}
         >
-          <Typography
-            className={styles.phonetic}
-            variant="h5"
-            fontWeight={600}
-            mb={2}
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            spacing={1.4}
+            alignItems={{ xs: "flex-start", sm: "stretch" }}
+            sx={{ minWidth: 0 }}
           >
-            {phonetic}
-          </Typography>
-          <IconButton
-            onClick={() => speakPhonetic(phonetic)}
-            size="medium"
-            aria-label="Phát âm phiên âm"
-          >
-            <VolumeUpIcon sx={{ fontSize: "1.5rem", color: "#43e97b" }} />
-          </IconButton>
-        </Box>
-      )}
+            <Box
+              sx={{
+                width: 78,
+                minWidth: 78,
+                height: 78,
+                borderRadius: "24px",
+                display: "grid",
+                placeItems: "center",
+                fontSize: "2rem",
+                bgcolor:
+                  theme.palette.mode === "dark"
+                    ? alpha(theme.palette.primary.main, 0.14)
+                    : alpha(theme.palette.secondary.main, 0.12),
+                boxShadow: "none",
+              }}
+            >
+              {imageHint || "🧠"}
+            </Box>
 
-      {(meta?.level !== undefined || meta?.dueAt) && (
-        <Typography
-          variant="body2"
-          sx={{ mt: 1.5, opacity: 0.75, textAlign: "center" }}
-        >
-          Level: {meta?.level ?? 0}
-          {meta?.dueAt ? ` · Next review: ${new Date(meta.dueAt).toLocaleString()}` : ""}
-        </Typography>
-      )}
+            <Stack spacing={0.75} sx={{ flexGrow: 1, minWidth: 0 }}>
+              <Typography
+                variant="overline"
+                color="text.secondary"
+                sx={{ lineHeight: 1.2, letterSpacing: "0.08em" }}
+              >
+                {t.lookAt}: {studyMode === "en-to-vi" ? t.en : t.vi}
+              </Typography>
+
+              <Stack
+                direction="row"
+                spacing={1}
+                alignItems="flex-start"
+                justifyContent="space-between"
+                sx={{ minWidth: 0 }}
+              >
+                <Typography
+                  variant="h3"
+                  sx={{
+                    fontSize: { xs: "1.75rem", md: "2.15rem" },
+                    lineHeight: 1.08,
+                    wordBreak: "break-word",
+                    overflowWrap: "anywhere",
+                    minWidth: 0,
+                    pr: 1,
+                    flex: 1,
+                  }}
+                >
+                  {prompt}
+                </Typography>
+
+                <IconButton
+                  onClick={speakWord}
+                  sx={{
+                    bgcolor: alpha(theme.palette.primary.main, 0.12),
+                    color: theme.palette.primary.main,
+                    flexShrink: 0,
+                    "&:hover": {
+                      bgcolor: alpha(theme.palette.primary.main, 0.18),
+                    },
+                  }}
+                >
+                  <VolumeUpIcon />
+                </IconButton>
+              </Stack>
+
+              {(phonetic || partOfSpeech || grammarTag) && (
+                <Typography variant="body2" color="text.secondary">
+                  {[partOfSpeech, grammarTag, phonetic].filter(Boolean).join(" • ")}
+                </Typography>
+              )}
+
+              {(scene || learnerHint) && (
+                <Box
+                  sx={{
+                    borderRadius: 3,
+                    px: 1,
+                    py: 0.9,
+                    bgcolor:
+                      theme.palette.mode === "dark"
+                        ? alpha(theme.palette.primary.main, 0.09)
+                        : alpha(theme.palette.secondary.main, 0.08),
+                  }}
+                >
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{ lineHeight: 1.45, wordBreak: "break-word", overflowWrap: "anywhere" }}
+                  >
+                    {t.imageHint}: {scene || learnerHint}
+                  </Typography>
+                </Box>
+              )}
+            </Stack>
+          </Stack>
+        </Box>
+
+        {showDetail ? (
+          <Box
+            sx={{
+              borderRadius: 4,
+              p: 1.15,
+              maxWidth: { xs: "100%", md: 560 },
+              width: "100%",
+              bgcolor: alpha(theme.palette.primary.main, 0.12),
+              border: `1px solid ${alpha(theme.palette.primary.main, 0.22)}`,
+            }}
+          >
+            <Typography variant="overline" color="text.secondary">
+              {t.answer}
+            </Typography>
+
+            <Typography
+              variant="h5"
+              sx={{
+                mt: 0.2,
+                mb: 0.45,
+                fontSize: { xs: "1rem", md: "1.05rem" },
+                lineHeight: 1.45,
+                wordBreak: "break-word",
+                overflowWrap: "anywhere",
+                fontWeight: 700,
+              }}
+            >
+              {answer}
+            </Typography>
+
+            {alternatives && alternatives.length > 0 && (
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 0.35 }}>
+                {t.alternatives}: {alternatives.join(", ")}
+              </Typography>
+            )}
+
+            {learnerHint && (
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 0.35 }}>
+                {t.hint}: {learnerHint}
+              </Typography>
+            )}
+
+            <Typography variant="body2" color="text.secondary">
+              {`${t.nextReview} ${formatDue(meta?.dueAt, locale)}.`}
+            </Typography>
+          </Box>
+        ) : (
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            sx={{ px: 0.2, lineHeight: 1.5 }}
+          >
+            {t.typeFirst}
+          </Typography>
+        )}
+      </Stack>
     </Box>
   );
 };
