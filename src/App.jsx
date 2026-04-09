@@ -1,51 +1,88 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ImportOutlined,
+  BulbOutlined,
+  ClockCircleOutlined,
+  MenuOutlined,
+  MoonOutlined,
+  SettingOutlined,
+  SunOutlined,
+} from "@ant-design/icons";
 import {
   Alert,
-  AppBar,
-  Box,
   Button,
-  Chip,
-  CssBaseline,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  FormControl,
-  IconButton,
-  InputLabel,
-  MenuItem,
-  Paper,
+  Card,
+  ConfigProvider,
+  Drawer,
+  Form,
+  Grid,
+  Layout,
+  Modal,
+  Progress,
+  Radio,
   Select,
-  Snackbar,
-  Stack,
-  Toolbar,
+  Segmented,
+  Space,
+  Steps,
+  Switch,
+  Tabs,
+  Tag,
   Typography,
-  alpha,
-} from "@mui/material";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
-import {
-  AutoStoriesRounded,
-  Brightness4,
-  Brightness7,
-  CampaignRounded,
-  ForumRounded,
-  GraphicEqRounded,
-  HistoryEduRounded,
-  Insights,
-  Tune,
-} from "@mui/icons-material";
+  message,
+  theme as antdTheme,
+} from "antd";
 import Flashcard from "./components/Flashcard";
 import QuizForm from "./components/QuizForm";
+import Sidebar from "./components/Sidebar";
+import { missionCatalog } from "./data/missions";
 import { categories, vocabData } from "./data/vocab";
 import { posLabels, stageCopy, uiCopy } from "./data/uiCopy";
 import {
   applyReview,
   getNextCardWord,
   getProgressSummary,
-  loadSrsState,
+  getWeakCardWords,
+  loadSrsStatePersisted,
   makeCardId,
   saveSrsState,
 } from "./utils/srs";
+import {
+  accuracy,
+  buildStageItems,
+  getAllowedCategories,
+  getFocusHint,
+  getLocalized,
+  mapLegacyCategory,
+  pickDirection,
+  sanitizeCategory,
+} from "./utils/learning";
+import {
+  annotateDeck,
+  filterDeckByWords,
+  getFrequencyMeta,
+} from "./utils/deck";
+import { buildSentenceExpansion } from "./utils/examples";
+import {
+  clearImportedDecks,
+  loadImportedDecks,
+  loadImportedDecksPersisted,
+  mergeImportedDecks,
+  parseImportText,
+  saveImportedDecks,
+} from "./utils/importDecks";
+import {
+  hasStorageKey,
+  migrateStorageKeysToIndexedDb,
+  readPersistentJson,
+  readPersistentText,
+  readStorageArray,
+  readStorageObject,
+  readStorageText,
+  writeStorageEntries,
+} from "./utils/storage";
+
+const { Header, Sider, Content } = Layout;
+const { useBreakpoint } = Grid;
 
 const PROFILE_KEY = "vocabLearnerProfile";
 const GOALS_KEY = "vocabGoals";
@@ -55,14 +92,29 @@ const THEME_KEY = "themeMode";
 const STAGE_KEY = "learningStage";
 const LOCALE_KEY = "uiLocale";
 const CATEGORY_KEY = "activeDeck";
+const PRACTICE_MODE_KEY = "practiceMode";
+const APP_PERSIST_KEYS = [
+  PROFILE_KEY,
+  GOALS_KEY,
+  STATS_KEY,
+  HISTORY_KEY,
+  THEME_KEY,
+  STAGE_KEY,
+  LOCALE_KEY,
+  CATEGORY_KEY,
+  PRACTICE_MODE_KEY,
+  "vocabImportedDecks",
+];
 
 const STAGES = ["vocabulary", "phrases", "tenses", "shadowing", "speaking"];
+
 const DEFAULT_PROFILE = {
   dailyMinutes: "10",
   focusPain: "forget",
   memoryStyle: "type",
   preferredTrack: "communication",
 };
+
 const DEFAULT_GOALS = { dailyWords: 14, dailyAccuracy: 85 };
 const EMPTY_STATS = {
   totalWords: 0,
@@ -73,153 +125,332 @@ const EMPTY_STATS = {
   viToEn: { total: 0, correct: 0 },
 };
 
-const panelCopy = {
-  vi: {
-    currentSession: "Phiên học hiện tại",
-    responsePanel: "Trả lời ngay",
-    responseHelper:
-      "Nhìn thẻ bên trái rồi gõ hoặc nói ở đây. Trên màn hình lớn, câu hỏi và kết quả sẽ nằm cùng một khung nhìn.",
-    direction: "Hướng nhớ",
-    openMenu: "Mở menu",
-  },
-  en: {
-    currentSession: "Current session",
-    responsePanel: "Respond now",
-    responseHelper:
-      "Look at the card on the left, then type or speak here. On large screens the prompt and result stay in the same viewport.",
-    direction: "Recall direction",
-    openMenu: "Open menu",
-  },
+const sanitizeProfile = (value) => ({
+  ...DEFAULT_PROFILE,
+  ...(value && typeof value === "object" ? value : {}),
+});
+
+const sanitizeGoals = (value) => {
+  const source = value && typeof value === "object" ? value : {};
+  return {
+    dailyWords:
+      Number.isFinite(Number(source.dailyWords)) && Number(source.dailyWords) > 0
+        ? Number(source.dailyWords)
+        : DEFAULT_GOALS.dailyWords,
+    dailyAccuracy:
+      Number.isFinite(Number(source.dailyAccuracy)) && Number(source.dailyAccuracy) > 0
+        ? Number(source.dailyAccuracy)
+        : DEFAULT_GOALS.dailyAccuracy,
+  };
 };
 
-const stageIcons = {
-  vocabulary: <AutoStoriesRounded fontSize="small" />,
-  phrases: <ForumRounded fontSize="small" />,
-  tenses: <HistoryEduRounded fontSize="small" />,
-  shadowing: <GraphicEqRounded fontSize="small" />,
-  speaking: <CampaignRounded fontSize="small" />,
+const sanitizeDirectionStats = (value) => ({
+  total:
+    Number.isFinite(Number(value?.total)) && Number(value.total) >= 0
+      ? Number(value.total)
+      : 0,
+  correct:
+    Number.isFinite(Number(value?.correct)) && Number(value.correct) >= 0
+      ? Number(value.correct)
+      : 0,
+});
+
+const sanitizeDailyProgress = (items) =>
+  (Array.isArray(items) ? items : [])
+    .filter((item) => item && typeof item === "object" && item.date)
+    .map((item) => ({
+      date: String(item.date),
+      words: Number.isFinite(Number(item.words)) ? Number(item.words) : 0,
+      correct: Number.isFinite(Number(item.correct)) ? Number(item.correct) : 0,
+      time: Number.isFinite(Number(item.time)) ? Number(item.time) : 0,
+      enToVi: sanitizeDirectionStats(item.enToVi),
+      viToEn: sanitizeDirectionStats(item.viToEn),
+    }));
+
+const sanitizeStats = (value) => {
+  const source = value && typeof value === "object" ? value : {};
+  return {
+    ...EMPTY_STATS,
+    totalWords:
+      Number.isFinite(Number(source.totalWords)) && Number(source.totalWords) >= 0
+        ? Number(source.totalWords)
+        : 0,
+    correctAnswers:
+      Number.isFinite(Number(source.correctAnswers)) && Number(source.correctAnswers) >= 0
+        ? Number(source.correctAnswers)
+        : 0,
+    averageTime:
+      Number.isFinite(Number(source.averageTime)) && Number(source.averageTime) >= 0
+        ? Number(source.averageTime)
+        : 0,
+    dailyProgress: sanitizeDailyProgress(source.dailyProgress),
+    enToVi: sanitizeDirectionStats(source.enToVi),
+    viToEn: sanitizeDirectionStats(source.viToEn),
+  };
 };
 
-const readJson = (key, fallback) => {
-  if (typeof window === "undefined") return fallback;
-  try {
-    const raw = window.localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : fallback;
-  } catch {
-    return fallback;
-  }
-};
-
-const readText = (key, fallback) => {
-  if (typeof window === "undefined") return fallback;
-  return window.localStorage.getItem(key) || fallback;
-};
+const sanitizeHistory = (items) =>
+  (Array.isArray(items) ? items : [])
+    .filter((item) => item && typeof item === "object" && item.word)
+    .map((item) => ({
+      word: String(item.word),
+      correct: Boolean(item.correct),
+      timeTaken:
+        Number.isFinite(Number(item.timeTaken)) && Number(item.timeTaken) >= 0
+          ? Number(item.timeTaken)
+          : 0,
+      stage: typeof item.stage === "string" ? item.stage : "vocabulary",
+      mode: typeof item.mode === "string" ? item.mode : "standard",
+    }));
 
 const todayKey = () => new Date().toISOString().split("T")[0];
-const accuracy = (correct, total) => (total ? Math.round((correct / total) * 100) : 0);
-const getLocalized = (value, locale) => value?.[locale] ?? value?.vi ?? value ?? "";
-const getAllowedCategories = (stage) => {
-  if (stage === "vocabulary") return categories.filter((item) => item.section === "vocabulary");
-  if (stage === "tenses") return categories.filter((item) => item.section === "grammar");
-  return categories.filter((item) => item.section === "phrases");
+
+const practiceCopy = {
+  vi: {
+    standard: "Luồng chuẩn",
+    weak: "Từ yếu",
+    mission: "Mission",
+    noWeakCards:
+      "Deck này chưa có thẻ yếu. Hãy học thêm để app tự gom các từ hay sai vào Weak mode.",
+    missionCompleted:
+      "Mission hôm nay đã xong. Bạn có thể quay lại luồng chuẩn hoặc làm lại để nhớ chắc hơn.",
+    missionTitle: "Mission hôm nay",
+    missionGoal: "Mục tiêu",
+    missionProgress: "Tiến độ mission",
+    weakTitle: "Weak words mode",
+    weakDescription:
+      "Chỉ hiện các thẻ bạn đã sai ít nhất 2 lần hoặc đang có weak score cao.",
+    weakCount: "Từ yếu",
+    importTitle: "Import JSON / CSV",
+    importHint:
+      "Dùng file JSON hoặc CSV để bơm thêm rất nhiều flashcard mà không cần sửa code.",
+    importAppend: "Gộp thêm",
+    importReplace: "Thay deck import",
+    importOpen: "Chọn file",
+    importSuccess: "Đã import thành công",
+    importEmpty: "Không đọc được dòng hợp lệ nào từ file này.",
+    importError: "File không hợp lệ hoặc parse thất bại.",
+    importClear: "Xóa deck import",
+    importSummary: "Kết quả import gần nhất",
+    importVocab: "Từ vựng import",
+    importPhrases: "Câu import",
+    importSources: "Nguồn file",
+    modeLabel: "Cách học",
+    importedHint: "Deck import sẽ tự xuất hiện ở sidebar bên trái.",
+    missionWin: "Mission hôm nay đã chạm mục tiêu.",
+  },
+  en: {
+    standard: "Standard",
+    weak: "Weak words",
+    mission: "Mission",
+    noWeakCards:
+      "This deck has no weak cards yet. Study more and the app will collect your trouble words here.",
+    missionCompleted:
+      "Today's mission is complete. You can switch back to the standard flow or replay it for stronger recall.",
+    missionTitle: "Today's mission",
+    missionGoal: "Goal",
+    missionProgress: "Mission progress",
+    weakTitle: "Weak words mode",
+    weakDescription:
+      "Only cards you missed at least twice or cards with a high weak score appear here.",
+    weakCount: "Weak cards",
+    importTitle: "Import JSON / CSV",
+    importHint:
+      "Use JSON or CSV to inject many flashcards without changing the codebase.",
+    importAppend: "Append",
+    importReplace: "Replace imported decks",
+    importOpen: "Choose file",
+    importSuccess: "Import completed",
+    importEmpty: "No valid rows were found in this file.",
+    importError: "The file is invalid or parsing failed.",
+    importClear: "Clear imported decks",
+    importSummary: "Latest import summary",
+    importVocab: "Imported vocab",
+    importPhrases: "Imported phrases",
+    importSources: "File sources",
+    modeLabel: "Learning mode",
+    importedHint: "Imported decks will appear automatically in the left sidebar.",
+    missionWin: "Today's mission reached its target.",
+  },
 };
-const sanitizeCategory = (stage, maybeCategory, preferredTrack) => {
-  const fallback = stage === "vocabulary" ? preferredTrack : stage === "tenses" ? "tenses" : "phrases";
-  const allowed = getAllowedCategories(stage);
-  return allowed.some((item) => item.key === maybeCategory) ? maybeCategory : fallback;
-};
-const pickDirection = (stage) => {
-  if (stage === "shadowing") return "en-to-vi";
-  if (stage === "speaking") return "vi-to-en";
-  if (stage === "tenses") return "vi-to-en";
-  return Math.random() < 0.5 ? "en-to-vi" : "vi-to-en";
+
+const getMissionOfDay = () => {
+  const hash = todayKey()
+    .split("")
+    .reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  return missionCatalog[hash % missionCatalog.length];
 };
 
 function App() {
-  const savedProfile = { ...DEFAULT_PROFILE, ...readJson(PROFILE_KEY, {}) };
-  const storedStage = readText(STAGE_KEY, "vocabulary");
-  const initialStage = STAGES.includes(storedStage) ? storedStage : "vocabulary";
-  const initialCategory = sanitizeCategory(
-    initialStage,
-    readText(CATEGORY_KEY, savedProfile.preferredTrack),
-    savedProfile.preferredTrack
-  );
+  const bootstrapRef = useRef(null);
+  if (!bootstrapRef.current) {
+    const savedProfile = sanitizeProfile(readStorageObject(PROFILE_KEY, {}));
+    const storedStage = readStorageText(STAGE_KEY, "vocabulary");
+    const initialStage = STAGES.includes(storedStage) ? storedStage : "vocabulary";
+    const storedTheme = readStorageText(THEME_KEY, "light");
+    const initialTheme = storedTheme === "dark" ? "dark" : "light";
+    const storedLocale = readStorageText(LOCALE_KEY, "vi");
+    const initialLocale = storedLocale === "en" ? "en" : "vi";
+    const storedPracticeMode = readStorageText(PRACTICE_MODE_KEY, "standard");
+    const initialPracticeMode =
+      storedPracticeMode === "weak" || storedPracticeMode === "mission"
+        ? storedPracticeMode
+        : "standard";
+    const initialCategory = sanitizeCategory(
+      initialStage,
+      readStorageText(CATEGORY_KEY, savedProfile.preferredTrack),
+      savedProfile.preferredTrack
+    );
 
-  const [mode, setMode] = useState(() => readText(THEME_KEY, "light"));
-  const [locale, setLocale] = useState(() => readText(LOCALE_KEY, "vi"));
+    bootstrapRef.current = {
+      savedProfile,
+      savedProfileExists: hasStorageKey(PROFILE_KEY),
+      initialStage,
+      initialTheme,
+      initialLocale,
+      initialPracticeMode,
+      initialCategory,
+    };
+  }
+
+  const {
+    savedProfile,
+    savedProfileExists,
+    initialStage,
+    initialTheme,
+    initialLocale,
+    initialPracticeMode,
+    initialCategory,
+  } = bootstrapRef.current;
+
+  const screens = useBreakpoint();
+  const isDesktop = Boolean(screens.lg);
+  const [messageApi, contextHolder] = message.useMessage();
+  const fileInputRef = useRef(null);
+  const skipNextCardIdRef = useRef(null);
+
+  const [mode, setMode] = useState(initialTheme);
+  const [locale, setLocale] = useState(initialLocale);
   const [stage, setStage] = useState(initialStage);
   const [profile, setProfile] = useState(savedProfile);
   const [draftProfile, setDraftProfile] = useState(savedProfile);
-  const [goals, setGoals] = useState(() => ({ ...DEFAULT_GOALS, ...readJson(GOALS_KEY, {}) }));
-  const [stats, setStats] = useState(() => ({ ...EMPTY_STATS, ...readJson(STATS_KEY, {}) }));
-  const [history, setHistory] = useState(() => readJson(HISTORY_KEY, []));
+  const [goals, setGoals] = useState(() => sanitizeGoals(readStorageObject(GOALS_KEY, {})));
+  const [stats, setStats] = useState(() => sanitizeStats(readStorageObject(STATS_KEY, {})));
+  const [history, setHistory] = useState(() =>
+    sanitizeHistory(readStorageArray(HISTORY_KEY, []))
+  );
   const [category, setCategory] = useState(initialCategory);
-  const [showProfileDialog, setShowProfileDialog] = useState(() => !window.localStorage.getItem(PROFILE_KEY));
+  const [practiceMode, setPracticeMode] = useState(initialPracticeMode);
+  const [showProfileDialog, setShowProfileDialog] = useState(!savedProfileExists);
   const [showInsightsDialog, setShowInsightsDialog] = useState(false);
-  const [showDetail, setShowDetail] = useState(false);
+  const [showConceptDialog, setShowConceptDialog] = useState(false);
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [studyMode, setStudyMode] = useState("en-to-vi");
   const [currentWord, setCurrentWord] = useState(null);
   const [srsState, setSrsState] = useState({});
-  const [srsMeta, setSrsMeta] = useState({ total: 0, learned: 0, mastered: 0, due: 0 });
+  const [safeCategorySrsState, setSafeCategorySrsState] = useState({});
+  const [srsMeta, setSrsMeta] = useState({
+    total: 0,
+    learned: 0,
+    mastered: 0,
+    due: 0,
+    weak: 0,
+  });
   const [startTime, setStartTime] = useState(Date.now());
-  const [notification, setNotification] = useState({ open: false, severity: "info", message: "" });
+  const [reviewResult, setReviewResult] = useState(null);
+  const [importStrategy, setImportStrategy] = useState("append");
+  const [importReport, setImportReport] = useState(null);
+  const [importedDecks, setImportedDecks] = useState(() => loadImportedDecks());
+  const [missionCompleted, setMissionCompleted] = useState([]);
 
   const copy = uiCopy[locale] || uiCopy.vi;
-  const shellCopy = panelCopy[locale] || panelCopy.vi;
-  const theme = useMemo(
-    () =>
-      createTheme({
-        palette: {
-          mode,
-          primary: { main: mode === "dark" ? "#7fe4b5" : "#2c6e62" },
-          secondary: { main: mode === "dark" ? "#ffc874" : "#c58731" },
-          background: {
-            default: mode === "dark" ? "#101917" : "#f6efe4",
-            paper: mode === "dark" ? "#172420" : "#fffaf2",
-          },
-          text: {
-            primary: mode === "dark" ? "#eff8f3" : "#24342f",
-            secondary: mode === "dark" ? "#b7cbc3" : "#6c756c",
-          },
+  const feature = practiceCopy[locale] || practiceCopy.vi;
+  const stageItems = useMemo(() => buildStageItems(locale), [locale]);
+  const todayMission = useMemo(() => getMissionOfDay(), []);
+
+  const antThemeConfig = useMemo(
+    () => ({
+      algorithm:
+        mode === "dark" ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
+      token: {
+        colorPrimary: mode === "dark" ? "#79d0b3" : "#1f7a72",
+        colorInfo: mode === "dark" ? "#79d0b3" : "#1f7a72",
+        colorSuccess: mode === "dark" ? "#96d986" : "#2f8a57",
+        colorWarning: mode === "dark" ? "#f5bf70" : "#d38b24",
+        colorError: mode === "dark" ? "#ff8f83" : "#d9534f",
+        borderRadius: 18,
+        wireframe: false,
+        fontFamily: '"Be Vietnam Pro", "Segoe UI", "Trebuchet MS", sans-serif',
+      },
+      components: {
+        Layout: {
+          headerBg: "transparent",
+          siderBg: "transparent",
+          bodyBg: "transparent",
+          triggerBg: "transparent",
         },
-        typography: {
-          fontFamily: '"Be Vietnam Pro", "Segoe UI", "Trebuchet MS", sans-serif',
-          fontSize: 13,
-          h3: { fontWeight: 800, fontSize: "2.15rem", letterSpacing: "-0.04em" },
-          h4: { fontWeight: 800, fontSize: "1.35rem", letterSpacing: "-0.03em" },
-          h6: { fontWeight: 700, fontSize: "1rem" },
-          button: { textTransform: "none", fontWeight: 700 },
+        Card: {
+          borderRadiusLG: 24,
         },
-        shape: { borderRadius: 8 },
-        components: {
-          MuiPaper: {
-            styleOverrides: {
-              root: {
-                backgroundImage: "none",
-              },
-            },
-          },
-          MuiChip: {
-            styleOverrides: {
-              root: {
-                borderRadius: 999,
-              },
-            },
-          },
+        Button: {
+          borderRadius: 14,
+          controlHeightLG: 46,
         },
-      }),
+        Input: {
+          borderRadiusLG: 16,
+          controlHeightLG: 48,
+        },
+        Select: {
+          borderRadiusLG: 16,
+          controlHeightLG: 46,
+        },
+        Menu: {
+          itemBorderRadius: 14,
+          itemHeight: 42,
+          subMenuItemBorderRadius: 12,
+        },
+      },
+    }),
     [mode]
   );
+
   const safeCategory = useMemo(
     () => sanitizeCategory(stage, category, profile.preferredTrack),
     [category, profile.preferredTrack, stage]
   );
   const allowedCategories = useMemo(() => getAllowedCategories(stage), [stage]);
+  const rawDecks = useMemo(
+    () => ({
+      ...vocabData,
+      importedvocab: importedDecks.vocabulary,
+      importedphrases: importedDecks.phrases,
+    }),
+    [importedDecks]
+  );
   const activeCategory = useMemo(
     () => categories.find((item) => item.key === safeCategory) || categories[0],
     [safeCategory]
   );
-  const words = useMemo(() => vocabData[safeCategory] || [], [safeCategory]);
+  const selectedDeckWords = useMemo(
+    () => annotateDeck(rawDecks[safeCategory] || []),
+    [rawDecks, safeCategory]
+  );
+  const missionCategoryKey = todayMission.category;
+  const missionBaseDeck = useMemo(
+    () => annotateDeck(rawDecks[missionCategoryKey] || []),
+    [missionCategoryKey, rawDecks]
+  );
+  const missionDeck = useMemo(
+    () => filterDeckByWords(missionBaseDeck, todayMission.cardWords),
+    [missionBaseDeck, todayMission.cardWords]
+  );
+  const missionRemainingWords = useMemo(() => {
+    const done = new Set(missionCompleted);
+    return missionDeck.filter((item) => !done.has(String(item.word).toLowerCase()));
+  }, [missionCompleted, missionDeck]);
+  const activeDeckKey = practiceMode === "mission" ? missionCategoryKey : safeCategory;
+  const effectiveStage = practiceMode === "mission" ? todayMission.stage : stage;
   const todayProgress = useMemo(
     () =>
       stats.dailyProgress.find((entry) => entry.date === todayKey()) || {
@@ -232,68 +463,290 @@ function App() {
       },
     [stats.dailyProgress]
   );
+  const weakPreviewCount = useMemo(() => {
+    const weakState =
+      practiceMode === "mission" ? safeCategorySrsState : srsState;
+    return getWeakCardWords(safeCategory, selectedDeckWords, weakState).length;
+  }, [practiceMode, safeCategory, safeCategorySrsState, selectedDeckWords, srsState]);
+  const activeDeckWords = useMemo(() => {
+    if (practiceMode === "mission") return missionRemainingWords;
+    if (practiceMode === "weak") {
+      return getWeakCardWords(safeCategory, selectedDeckWords, srsState);
+    }
+    return selectedDeckWords;
+  }, [missionRemainingWords, practiceMode, safeCategory, selectedDeckWords, srsState]);
+  const summaryWords = practiceMode === "mission" ? missionDeck : selectedDeckWords;
   const answerBundle = useMemo(() => {
     if (!currentWord) return { primary: "", accepted: [], alternatives: [] };
     const primary = studyMode === "en-to-vi" ? currentWord.meaning : currentWord.word;
     const alternatives =
-      studyMode === "en-to-vi" ? currentWord.alternativesVi || [] : currentWord.alternativesEn || [];
+      studyMode === "en-to-vi"
+        ? currentWord.alternativesVi || []
+        : currentWord.alternativesEn || [];
     return { primary, accepted: [primary, ...alternatives], alternatives };
   }, [currentWord, studyMode]);
-  const currentPrompt = currentWord ? (studyMode === "en-to-vi" ? currentWord.word : currentWord.meaning) : "";
-  const currentCard = currentWord?.word ? srsState[makeCardId(safeCategory, currentWord.word)] : null;
+  const currentPrompt = currentWord
+    ? studyMode === "en-to-vi"
+      ? currentWord.word
+      : currentWord.meaning
+    : "";
+  const currentSpeechText = currentWord?.word || "";
+  const currentCard = currentWord?.word
+    ? srsState[makeCardId(activeDeckKey, currentWord.word)]
+    : null;
+  const currentExamples = useMemo(
+    () => buildSentenceExpansion(currentWord, locale),
+    [currentWord, locale]
+  );
+  const missionSolvedCount = missionDeck.length - missionRemainingWords.length;
+  const missionProgressPercent = todayMission.goal
+    ? Math.min(100, Math.round((missionSolvedCount / todayMission.goal) * 100))
+    : 0;
+  const stageLabel = getLocalized(stageCopy[effectiveStage].label, locale);
+  const stageHelper =
+    practiceMode === "mission"
+      ? getLocalized(todayMission.objective, locale)
+      : getLocalized(stageCopy[effectiveStage].helper, locale);
+  const sessionTitle =
+    practiceMode === "mission"
+      ? getLocalized(todayMission.title, locale)
+      : practiceMode === "weak"
+        ? feature.weakTitle
+        : copy.sessionTitle;
+  const sessionDescription =
+    practiceMode === "mission"
+      ? getLocalized(todayMission.summary, locale)
+      : practiceMode === "weak"
+        ? feature.weakDescription
+        : getLocalized(activeCategory.description, locale);
+  const focusHint =
+    practiceMode === "mission"
+      ? `${getLocalized(todayMission.objective, locale)} ${getFocusHint(
+          copy,
+          effectiveStage,
+          studyMode
+        )}`
+      : getFocusHint(copy, effectiveStage, studyMode);
+  const directionLabel = studyMode === "en-to-vi" ? "EN -> VI" : "VI -> EN";
+  const accuracyValue = accuracy(stats.correctAnswers, stats.totalWords);
+  const completionPercent = Math.min(
+    100,
+    goals.dailyWords ? Math.round((todayProgress.words / goals.dailyWords) * 100) : 0
+  );
+  const hasImportedDecks =
+    importedDecks.vocabulary.length > 0 || importedDecks.phrases.length > 0;
+  const importedAtLabel = importedDecks.meta?.lastImportedAt
+    ? new Date(importedDecks.meta.lastImportedAt).toLocaleString(
+        locale === "vi" ? "vi-VN" : "en-US"
+      )
+    : "--";
 
-  const showNotice = useCallback((message, severity = "info") => {
-    setNotification({ open: true, severity, message });
-  }, []);
+  const sidebarStats = [
+    { label: copy.today, value: `${todayProgress.words}/${goals.dailyWords}` },
+    { label: copy.due, value: `${srsMeta.due}` },
+    { label: feature.weakCount, value: `${srsMeta.weak}` },
+    { label: copy.accuracy, value: `${accuracyValue}%` },
+  ];
 
-  const loadDeck = useCallback((selectedCategory, selectedStage) => {
-    const deck = vocabData[selectedCategory] || [];
-    const loaded = loadSrsState(selectedCategory);
-    const picked = getNextCardWord(selectedCategory, deck, loaded).chosen;
-    const direction = pickDirection(selectedStage);
-    setSrsState(loaded);
-    setSrsMeta(getProgressSummary(selectedCategory, deck, loaded));
-    setStudyMode(direction);
-    setCurrentWord(picked ? { ...picked, direction } : null);
-    setShowDetail(false);
-    setStartTime(Date.now());
-  }, []);
+  useEffect(() => {
+    document.body.dataset.theme = mode;
+  }, [mode]);
 
   useEffect(() => {
     if (category !== safeCategory) setCategory(safeCategory);
   }, [category, safeCategory]);
 
   useEffect(() => {
-    loadDeck(safeCategory, stage);
-  }, [loadDeck, safeCategory, stage]);
+    let alive = true;
+
+    const hydrateAppState = async () => {
+      await migrateStorageKeysToIndexedDb(APP_PERSIST_KEYS);
+
+      const [
+        persistedProfile,
+        persistedGoals,
+        persistedStats,
+        persistedHistory,
+        persistedTheme,
+        persistedLocale,
+        persistedStage,
+        persistedCategory,
+        persistedPracticeMode,
+      ] = await Promise.all([
+        readPersistentJson(PROFILE_KEY, savedProfile),
+        readPersistentJson(GOALS_KEY, DEFAULT_GOALS),
+        readPersistentJson(STATS_KEY, EMPTY_STATS),
+        readPersistentJson(HISTORY_KEY, []),
+        readPersistentText(THEME_KEY, initialTheme),
+        readPersistentText(LOCALE_KEY, initialLocale),
+        readPersistentText(STAGE_KEY, initialStage),
+        readPersistentText(CATEGORY_KEY, initialCategory),
+        readPersistentText(PRACTICE_MODE_KEY, initialPracticeMode),
+      ]);
+
+      if (!alive) return;
+
+      const nextProfile = sanitizeProfile(persistedProfile);
+      const nextStage = STAGES.includes(persistedStage) ? persistedStage : initialStage;
+      const nextLocale = persistedLocale === "en" ? "en" : "vi";
+      const nextTheme = persistedTheme === "dark" ? "dark" : "light";
+      const nextPracticeMode =
+        persistedPracticeMode === "weak" || persistedPracticeMode === "mission"
+          ? persistedPracticeMode
+          : "standard";
+
+      setProfile(nextProfile);
+      setDraftProfile(nextProfile);
+      setGoals(sanitizeGoals(persistedGoals));
+      setStats(sanitizeStats(persistedStats));
+      setHistory(sanitizeHistory(persistedHistory));
+      setMode(nextTheme);
+      setLocale(nextLocale);
+      setStage(nextStage);
+      setPracticeMode(nextPracticeMode);
+      setCategory(
+        sanitizeCategory(nextStage, persistedCategory, nextProfile.preferredTrack)
+      );
+    };
+
+    void hydrateAppState();
+
+    return () => {
+      alive = false;
+    };
+  }, [
+    initialCategory,
+    initialLocale,
+    initialPracticeMode,
+    initialStage,
+    initialTheme,
+    savedProfile,
+  ]);
 
   useEffect(() => {
-    window.localStorage.setItem(THEME_KEY, mode);
-    window.localStorage.setItem(LOCALE_KEY, locale);
-    window.localStorage.setItem(STAGE_KEY, stage);
-    window.localStorage.setItem(CATEGORY_KEY, safeCategory);
-    window.localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
-    window.localStorage.setItem(GOALS_KEY, JSON.stringify(goals));
-    window.localStorage.setItem(STATS_KEY, JSON.stringify(stats));
-    window.localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
-  }, [category, goals, history, locale, mode, profile, safeCategory, stage, stats]);
+    let alive = true;
+
+    const loadActiveSrs = async () => {
+      const loaded = await loadSrsStatePersisted(activeDeckKey);
+      if (alive) setSrsState(loaded);
+    };
+
+    void loadActiveSrs();
+
+    return () => {
+      alive = false;
+    };
+  }, [activeDeckKey]);
+
+  useEffect(() => {
+    let alive = true;
+
+    const loadSafeCategorySrs = async () => {
+      const loaded = await loadSrsStatePersisted(safeCategory);
+      if (alive) setSafeCategorySrsState(loaded);
+    };
+
+    void loadSafeCategorySrs();
+
+    return () => {
+      alive = false;
+    };
+  }, [safeCategory]);
+
+  useEffect(() => {
+    let alive = true;
+
+    const hydrateImportedDecks = async () => {
+      const loaded = await loadImportedDecksPersisted();
+      if (alive) setImportedDecks(loaded);
+    };
+
+    void hydrateImportedDecks();
+
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    setSrsMeta(getProgressSummary(activeDeckKey, summaryWords, srsState));
+  }, [activeDeckKey, srsState, summaryWords]);
+
+  useEffect(() => {
+    if (reviewResult) return;
+
+    const skippedCardId = skipNextCardIdRef.current;
+    const direction =
+      practiceMode === "mission"
+        ? todayMission.direction || pickDirection(effectiveStage)
+        : pickDirection(effectiveStage);
+    const candidateWords =
+      skippedCardId && activeDeckWords.length > 1
+        ? activeDeckWords.filter(
+            (item) => makeCardId(activeDeckKey, item.word) !== skippedCardId
+          )
+        : activeDeckWords;
+    const picked = getNextCardWord(
+      activeDeckKey,
+      candidateWords.length > 0 ? candidateWords : activeDeckWords,
+      srsState
+    ).chosen;
+
+    skipNextCardIdRef.current = null;
+    setStudyMode(direction);
+    setCurrentWord(picked ? { ...picked, direction } : null);
+  }, [
+    activeDeckKey,
+    activeDeckWords,
+    effectiveStage,
+    practiceMode,
+    reviewResult,
+    srsState,
+    todayMission.direction,
+  ]);
+
+  useEffect(() => {
+    writeStorageEntries([
+      [THEME_KEY, mode],
+      [LOCALE_KEY, locale],
+      [STAGE_KEY, stage],
+      [CATEGORY_KEY, safeCategory],
+      [PRACTICE_MODE_KEY, practiceMode],
+      [PROFILE_KEY, JSON.stringify(profile)],
+      [GOALS_KEY, JSON.stringify(goals)],
+      [STATS_KEY, JSON.stringify(stats)],
+      [HISTORY_KEY, JSON.stringify(history)],
+    ]);
+  }, [goals, history, locale, mode, practiceMode, profile, safeCategory, stage, stats]);
 
   useEffect(() => {
     setDraftProfile(profile);
   }, [profile]);
 
-  const handleAnswer = useCallback(
-    (isCorrect) => {
-      if (!currentWord) return;
+  useEffect(() => {
+    setReviewResult(null);
+    setStartTime(Date.now());
+  }, [activeDeckKey, effectiveStage, practiceMode]);
+
+  useEffect(() => {
+    setMissionCompleted([]);
+  }, [practiceMode, todayMission.key]);
+
+  const handleReviewSubmit = useCallback(
+    ({ isCorrect, submittedValue }) => {
+      if (!currentWord || reviewResult) return;
+
       const now = Date.now();
       const timeTaken = Math.max(1, Math.round((now - startTime) / 1000));
       const day = todayKey();
       const nextState = { ...srsState };
 
-      applyReview(nextState, makeCardId(safeCategory, currentWord.word), isCorrect, now);
-      saveSrsState(safeCategory, nextState);
+      applyReview(nextState, makeCardId(activeDeckKey, currentWord.word), isCorrect, now);
+      saveSrsState(activeDeckKey, nextState);
       setSrsState(nextState);
-      setSrsMeta(getProgressSummary(safeCategory, words, nextState));
+      if (activeDeckKey === safeCategory) {
+        setSafeCategorySrsState(nextState);
+      }
 
       setStats((previous) => {
         const next = {
@@ -303,13 +756,17 @@ function App() {
           viToEn: { ...(previous.viToEn || { total: 0, correct: 0 }) },
           dailyProgress: [...(previous.dailyProgress || [])],
         };
+
         next.totalWords += 1;
         next.correctAnswers += isCorrect ? 1 : 0;
         next.averageTime =
-          ((previous.averageTime || 0) * (previous.totalWords || 0) + timeTaken) / next.totalWords;
+          ((previous.averageTime || 0) * (previous.totalWords || 0) + timeTaken) /
+          next.totalWords;
+
         const bucket = studyMode === "en-to-vi" ? next.enToVi : next.viToEn;
         bucket.total += 1;
         bucket.correct += isCorrect ? 1 : 0;
+
         const index = next.dailyProgress.findIndex((entry) => entry.date === day);
         if (index === -1) {
           next.dailyProgress.push({
@@ -317,8 +774,14 @@ function App() {
             words: 1,
             correct: isCorrect ? 1 : 0,
             time: timeTaken,
-            enToVi: { total: studyMode === "en-to-vi" ? 1 : 0, correct: studyMode === "en-to-vi" && isCorrect ? 1 : 0 },
-            viToEn: { total: studyMode === "vi-to-en" ? 1 : 0, correct: studyMode === "vi-to-en" && isCorrect ? 1 : 0 },
+            enToVi: {
+              total: studyMode === "en-to-vi" ? 1 : 0,
+              correct: studyMode === "en-to-vi" && isCorrect ? 1 : 0,
+            },
+            viToEn: {
+              total: studyMode === "vi-to-en" ? 1 : 0,
+              correct: studyMode === "vi-to-en" && isCorrect ? 1 : 0,
+            },
           });
         } else {
           const entry = next.dailyProgress[index];
@@ -329,549 +792,830 @@ function App() {
             time: entry.time + timeTaken,
             enToVi: {
               total: entry.enToVi.total + (studyMode === "en-to-vi" ? 1 : 0),
-              correct: entry.enToVi.correct + (studyMode === "en-to-vi" && isCorrect ? 1 : 0),
+              correct:
+                entry.enToVi.correct + (studyMode === "en-to-vi" && isCorrect ? 1 : 0),
             },
             viToEn: {
               total: entry.viToEn.total + (studyMode === "vi-to-en" ? 1 : 0),
-              correct: entry.viToEn.correct + (studyMode === "vi-to-en" && isCorrect ? 1 : 0),
+              correct:
+                entry.viToEn.correct + (studyMode === "vi-to-en" && isCorrect ? 1 : 0),
             },
           };
         }
+
         return next;
       });
 
       setHistory((previous) =>
-        [{ word: currentWord.word, correct: isCorrect, timeTaken, stage }, ...previous].slice(0, 18)
+        [
+          { word: currentWord.word, correct: isCorrect, timeTaken, stage: effectiveStage, mode: practiceMode },
+          ...previous,
+        ].slice(0, 20)
       );
 
-      const nextCard = getNextCardWord(safeCategory, words, nextState).chosen;
-      const nextDirection = pickDirection(stage);
-      setCurrentWord(nextCard ? { ...nextCard, direction: nextDirection } : null);
-      setStudyMode(nextDirection);
-      setShowDetail(false);
-      setStartTime(Date.now());
-      showNotice(isCorrect ? copy.correctToast : copy.wrongToast, isCorrect ? "success" : "warning");
+      if (practiceMode === "mission" && isCorrect) {
+        const missionWord = String(currentWord.word).toLowerCase();
+        if (!missionCompleted.includes(missionWord)) {
+          const nextMissionCount = missionCompleted.length + 1;
+          setMissionCompleted([...missionCompleted, missionWord]);
+
+          if (nextMissionCount >= todayMission.goal && missionCompleted.length < todayMission.goal) {
+            messageApi.success(feature.missionWin);
+          }
+        }
+      }
+
+      setReviewResult({
+        isCorrect,
+        submittedValue,
+        timeTaken,
+      });
+
+      messageApi.open({
+        type: isCorrect ? "success" : "warning",
+        content: isCorrect ? copy.correctToast : copy.wrongToast,
+        duration: 1.6,
+      });
     },
-    [copy.correctToast, copy.wrongToast, currentWord, safeCategory, showNotice, srsState, stage, startTime, studyMode, words]
+    [
+      copy.correctToast,
+      copy.wrongToast,
+      currentWord,
+      activeDeckKey,
+      effectiveStage,
+      feature.missionWin,
+      messageApi,
+      missionCompleted,
+      practiceMode,
+      reviewResult,
+      safeCategory,
+      srsState,
+      startTime,
+      studyMode,
+      todayMission.goal,
+    ]
   );
 
+  const handleContinue = useCallback(() => {
+    skipNextCardIdRef.current = currentWord?.word
+      ? makeCardId(activeDeckKey, currentWord.word)
+      : null;
+    setReviewResult(null);
+    setStartTime(Date.now());
+  }, [activeDeckKey, currentWord]);
+
   const handleSaveProfile = useCallback(() => {
-    const dailyWords = draftProfile.dailyMinutes === "20" ? 24 : draftProfile.dailyMinutes === "5" ? 8 : 14;
-    setProfile(draftProfile);
+    const mappedTrack = mapLegacyCategory(draftProfile.preferredTrack);
+    const dailyWords =
+      draftProfile.dailyMinutes === "20"
+        ? 24
+        : draftProfile.dailyMinutes === "5"
+          ? 8
+          : 14;
+
+    setProfile({
+      ...draftProfile,
+      preferredTrack: mappedTrack,
+    });
     setGoals({
       dailyWords: draftProfile.focusPain === "typing" ? Math.max(6, dailyWords - 2) : dailyWords,
       dailyAccuracy: draftProfile.memoryStyle === "type" ? 85 : 80,
     });
     setStage("vocabulary");
-    setCategory(draftProfile.preferredTrack);
+    setCategory(mappedTrack);
     setShowProfileDialog(false);
-    showNotice(copy.profileSaved, "success");
-  }, [copy.profileSaved, draftProfile, showNotice]);
+    messageApi.success(copy.profileSaved);
+  }, [copy.profileSaved, draftProfile, messageApi]);
 
-  const handleStageChange = useCallback((nextStage) => {
-    setStage(nextStage);
-  }, []);
+  const handleRouteChange = useCallback(
+    (nextStage, nextCategory) => {
+      if (practiceMode === "mission") {
+        setPracticeMode("standard");
+      }
 
-  const stageLabel = getLocalized(stageCopy[stage].label, locale);
-  const stageHelper = getLocalized(stageCopy[stage].helper, locale);
-  const focusHint =
-    stage === "shadowing"
-      ? copy.focusHints.shadowing
-      : stage === "speaking"
-        ? copy.focusHints.speaking
-        : stage === "tenses"
-          ? copy.focusHints.tenses
-        : stage === "phrases"
-          ? studyMode === "en-to-vi"
-            ? copy.focusHints.phrasesEnToVi
-            : copy.focusHints.phrasesViToEn
-          : studyMode === "en-to-vi"
-            ? copy.focusHints.vocabularyEnToVi
-            : copy.focusHints.vocabularyViToEn;
-
-  const stageItems = useMemo(
-    () =>
-      STAGES.map((item) => ({
-        key: item,
-        label: getLocalized(stageCopy[item].label, locale),
-        helper: getLocalized(stageCopy[item].helper, locale),
-        icon: stageIcons[item],
-        subItems: getAllowedCategories(item).map((categoryItem) => ({
-          key: categoryItem.key,
-          label: getLocalized(categoryItem.label, locale),
-          emoji: categoryItem.emoji,
-        })),
-      })),
-    [locale]
+      setStage(nextStage);
+      setCategory(sanitizeCategory(nextStage, nextCategory, profile.preferredTrack));
+      setMobileNavOpen(false);
+    },
+    [practiceMode, profile.preferredTrack]
   );
 
-  const accuracyValue = accuracy(stats.correctAnswers, stats.totalWords);
-  const directionLabel = studyMode === "en-to-vi" ? "EN -> VI" : "VI -> EN";
+  const handleModeChange = useCallback(
+    (nextMode) => {
+      if (nextMode === "weak" && weakPreviewCount === 0) {
+        messageApi.info(feature.noWeakCards);
+        return;
+      }
 
-  const sidebarStats = [
-    { label: copy.today, value: `${todayProgress.words}/${goals.dailyWords}` },
-    { label: copy.due, value: `${srsMeta.due}` },
-    { label: copy.mastered, value: `${srsMeta.mastered}` },
-    { label: copy.accuracy, value: `${accuracyValue}%` },
-  ];
+      if (nextMode === "mission" && missionDeck.length === 0) {
+        messageApi.info(copy.noDeck);
+        return;
+      }
+
+      setPracticeMode(nextMode);
+      setReviewResult(null);
+    },
+    [copy.noDeck, feature.noWeakCards, messageApi, missionDeck.length, weakPreviewCount]
+  );
+
+  const handleImportFile = useCallback(
+    async (event) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+
+      try {
+        const text = await file.text();
+        const extension = file.name.toLowerCase().endsWith(".csv") ? "csv" : "json";
+        const parsed = parseImportText(text, extension);
+
+        if (!parsed.total) {
+          setImportReport({
+            fileName: file.name,
+            vocabulary: 0,
+            phrases: 0,
+            total: 0,
+          });
+          messageApi.warning(feature.importEmpty);
+          return;
+        }
+
+        const merged = mergeImportedDecks(
+          importedDecks,
+          parsed,
+          importStrategy,
+          file.name
+        );
+        saveImportedDecks(merged);
+        setImportedDecks(merged);
+        setImportReport({
+          fileName: file.name,
+          vocabulary: parsed.vocabulary.length,
+          phrases: parsed.phrases.length,
+          total: parsed.total,
+          sources: merged.meta.sources,
+        });
+        setPracticeMode("standard");
+
+        if (parsed.vocabulary.length > 0) {
+          setStage("vocabulary");
+          setCategory("importedvocab");
+        } else if (parsed.phrases.length > 0) {
+          setStage("phrases");
+          setCategory("importedphrases");
+        }
+
+        messageApi.success(
+          `${feature.importSuccess}: ${parsed.total} ${
+            locale === "vi" ? "thẻ" : "cards"
+          }`
+        );
+      } catch {
+        messageApi.error(feature.importError);
+      } finally {
+        event.target.value = "";
+      }
+    },
+    [
+      feature.importEmpty,
+      feature.importError,
+      feature.importSuccess,
+      importStrategy,
+      importedDecks,
+      locale,
+      messageApi,
+    ]
+  );
+
+  const handleClearImported = useCallback(() => {
+    clearImportedDecks();
+    setImportedDecks(loadImportedDecks());
+    setImportReport(null);
+
+    if (safeCategory === "importedvocab") {
+      setStage("vocabulary");
+      setCategory(profile.preferredTrack);
+    }
+
+    if (safeCategory === "importedphrases") {
+      setStage("phrases");
+      setCategory("phrases");
+    }
+
+    if (practiceMode !== "standard") {
+      setPracticeMode("standard");
+    }
+
+    messageApi.success(feature.importClear);
+  }, [feature.importClear, messageApi, practiceMode, profile.preferredTrack, safeCategory]);
+
+  const deckSelectOptions = allowedCategories.map((item) => {
+    const importedCount =
+      item.key === "importedvocab" || item.key === "importedphrases"
+        ? (rawDecks[item.key] || []).length
+        : null;
+
+    return {
+      label: `${item.emoji} ${getLocalized(item.label, locale)}${
+        importedCount !== null ? ` (${importedCount})` : ""
+      }`,
+      value: item.key,
+    };
+  });
+
+  const conceptTabItems = Object.entries(copy.conceptTabs).map(([key, value]) => ({
+    key,
+    label: value.label,
+    children: (
+      <div className="concept-tab-body">
+        <Typography.Paragraph>{copy.conceptIntro}</Typography.Paragraph>
+        <ul className="concept-list">
+          {value.items.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      </div>
+    ),
+  }));
+
+  const sidebarNode = (
+    <Sidebar
+      locale={locale}
+      title={copy.appTitle}
+      subtitle={copy.focusSubtitle}
+      stageItems={stageItems}
+      activeStage={stage}
+      activeCategory={safeCategory}
+      stats={sidebarStats}
+      history={history}
+      completionPercent={completionPercent}
+      onRouteChange={handleRouteChange}
+      onOpenConcept={() => setShowConceptDialog(true)}
+      onOpenInsights={() => setShowInsightsDialog(true)}
+      onOpenProfile={() => setShowProfileDialog(true)}
+      onOpenImport={() => setShowImportDialog(true)}
+    />
+  );
 
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <Box
-        sx={{
-          minHeight: "100vh",
-          background:
-            mode === "dark"
-              ? "radial-gradient(circle at top left, #1e3b36 0%, #0c1413 52%, #090f0f 100%)"
-              : "radial-gradient(circle at top left, #fffaf2 0%, #f3ead8 52%, #e7d8bc 100%)",
-        }}
-      >
-        <AppBar
-          position="sticky"
-          elevation={0}
-          sx={{
-            bgcolor:
-              mode === "dark"
-                ? alpha("#0f1817", 0.84)
-                : alpha("#fffaf3", 0.9),
-            backdropFilter: "blur(18px)",
-            borderBottom: `1px solid ${alpha(theme.palette.text.primary, 0.08)}`,
-          }}
-        >
-          <Toolbar sx={{ gap: 1, minHeight: 72 }}>
-            <Stack spacing={0.2} sx={{ flexGrow: 1, minWidth: 0 }}>
-              <Typography
-                variant="h6"
-                sx={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
-              >
-                {copy.appTitle}
-              </Typography>
-              <Typography
-                variant="body2"
-                color="text.secondary"
-                sx={{ display: { xs: "none", sm: "block" } }}
-              >
-                {copy.focusSubtitle}
-              </Typography>
-            </Stack>
+    <ConfigProvider theme={antThemeConfig}>
+      {contextHolder}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".json,.csv"
+        style={{ display: "none" }}
+        onChange={handleImportFile}
+      />
 
-            <Stack direction="row" spacing={0.75}>
-              <Button
-                variant={locale === "vi" ? "contained" : "outlined"}
-                size="small"
-                onClick={() => setLocale("vi")}
-                sx={{ minWidth: 52 }}
-              >
-                VI
-              </Button>
-              <Button
-                variant={locale === "en" ? "contained" : "outlined"}
-                size="small"
-                onClick={() => setLocale("en")}
-                sx={{ minWidth: 52 }}
-              >
-                EN
-              </Button>
-            </Stack>
+      <Layout className="app-shell">
+        {isDesktop ? (
+          <Sider width={312} className="app-sider">
+            {sidebarNode}
+          </Sider>
+        ) : null}
 
-            <IconButton
-              onClick={() => setShowInsightsDialog(true)}
-              sx={{ display: { xs: "inline-flex", sm: "none" } }}
-            >
-              <Insights />
-            </IconButton>
-            <IconButton
-              onClick={() => setShowProfileDialog(true)}
-              sx={{ display: { xs: "inline-flex", sm: "none" } }}
-            >
-              <Tune />
-            </IconButton>
-            <Button
-              size="small"
-              startIcon={<Insights />}
-              onClick={() => setShowInsightsDialog(true)}
-              sx={{ display: { xs: "none", sm: "inline-flex" } }}
-            >
-              {copy.progress}
-            </Button>
-            <Button
-              size="small"
-              startIcon={<Tune />}
-              onClick={() => setShowProfileDialog(true)}
-              sx={{ display: { xs: "none", sm: "inline-flex" } }}
-            >
-              {copy.learningSetup}
-            </Button>
-            <IconButton onClick={() => setMode((previous) => (previous === "light" ? "dark" : "light"))}>
-              {mode === "light" ? <Brightness4 /> : <Brightness7 />}
-            </IconButton>
-          </Toolbar>
-        </AppBar>
+        <Layout className="app-main-layout">
+          <Header className="app-header">
+            <div className="app-header-left">
+              {!isDesktop ? (
+                <Button
+                  type="text"
+                  icon={<MenuOutlined />}
+                  onClick={() => setMobileNavOpen(true)}
+                />
+              ) : null}
 
-        <Box
-          sx={{
-            maxWidth: 1460,
-            mx: "auto",
-            px: { xs: 1.1, sm: 1.5, lg: 2.25 },
-            py: { xs: 1.2, md: 1.7 },
-          }}
-        >
-          <Box sx={{ minWidth: 0 }}>
-            <Stack spacing={1.5}>
-            <Paper
-              sx={{
-                width: "100%",
-                p: { xs: 1.35, md: 1.8 },
-                backgroundColor:
-                  mode === "dark"
-                    ? alpha(theme.palette.background.paper, 0.82)
-                    : alpha("#fffbf6", 0.9),
-                border: "none",
-                boxShadow:
-                  mode === "dark"
-                    ? "0 14px 30px rgba(0,0,0,0.14)"
-                    : "0 14px 28px rgba(113, 99, 72, 0.08)",
-              }}
-            >
-              <Stack spacing={1.25}>
-                <Stack
-                  direction={{ xs: "column", md: "row" }}
-                  spacing={1.3}
-                  justifyContent="space-between"
-                  alignItems={{ xs: "stretch", md: "flex-start" }}
-                >
-                  <Stack spacing={0.65} sx={{ minWidth: 0 }}>
-                    <Chip
-                      color="secondary"
-                      label={stageLabel}
-                      sx={{ alignSelf: "flex-start", fontWeight: 800 }}
-                    />
-                    <Typography variant="h4">{shellCopy.currentSession}</Typography>
-                    <Typography variant="body1" sx={{ color: "text.secondary", maxWidth: 740 }}>
-                      {stageHelper}
-                    </Typography>
-                    <Typography variant="body2" sx={{ color: "text.secondary", maxWidth: 740 }}>
-                      {getLocalized(activeCategory.description, locale)}
-                    </Typography>
-                  </Stack>
+              <div className="app-header-copy">
+                <Typography.Title level={4}>{copy.appTitle}</Typography.Title>
+                <Typography.Paragraph>{stageHelper}</Typography.Paragraph>
+              </div>
+            </div>
 
-                  <Stack
-                    spacing={1}
-                    sx={{ minWidth: { xs: 0, md: 280 }, width: { xs: "100%", md: "auto" } }}
+            <div className="app-header-actions">
+              <Segmented
+                value={locale}
+                onChange={(value) => setLocale(value)}
+                options={[
+                  { label: "VI", value: "vi" },
+                  { label: "EN", value: "en" },
+                ]}
+              />
+
+              {screens.md ? (
+                <Space size={8} wrap>
+                  <Button
+                    icon={<BulbOutlined />}
+                    onClick={() => setShowConceptDialog(true)}
                   >
-                    <Chip
-                      variant="outlined"
-                      label={`${shellCopy.direction}: ${directionLabel}`}
-                      sx={{ alignSelf: { xs: "flex-start", md: "flex-end" } }}
-                    />
+                    {copy.concept}
+                  </Button>
+                  <Button
+                    icon={<ClockCircleOutlined />}
+                    onClick={() => setShowInsightsDialog(true)}
+                  >
+                    {copy.progress}
+                  </Button>
+                  <Button
+                    icon={<ImportOutlined />}
+                    onClick={() => setShowImportDialog(true)}
+                  >
+                    {feature.importOpen}
+                  </Button>
+                  <Button
+                    icon={<SettingOutlined />}
+                    onClick={() => setShowProfileDialog(true)}
+                  >
+                    {copy.learningSetup}
+                  </Button>
+                </Space>
+              ) : null}
 
-                    {allowedCategories.length > 1 ? (
-                      <FormControl size="small" fullWidth>
-                        <InputLabel>{copy.category}</InputLabel>
-                        <Select
-                          value={safeCategory}
-                          label={copy.category}
-                          onChange={(event) => setCategory(event.target.value)}
-                        >
-                          {allowedCategories.map((item) => (
-                            <MenuItem key={item.key} value={item.key}>
-                              {item.emoji} {getLocalized(item.label, locale)}
-                            </MenuItem>
-                          ))}
-                        </Select>
-                      </FormControl>
-                    ) : (
-                      <Chip
-                        variant="outlined"
-                        label={`${activeCategory.emoji} ${getLocalized(activeCategory.label, locale)}`}
-                        sx={{ justifyContent: "flex-start" }}
-                      />
-                    )}
-                  </Stack>
-                </Stack>
+              <Switch
+                checked={mode === "dark"}
+                checkedChildren={<MoonOutlined />}
+                unCheckedChildren={<SunOutlined />}
+                onChange={(checked) => setMode(checked ? "dark" : "light")}
+              />
+            </div>
+          </Header>
 
-                <Stack direction="row" spacing={0.75} sx={{ flexWrap: "wrap" }} useFlexGap>
-                  {stageItems.map((item) => {
-                    const selected = item.key === stage;
-                    return (
-                      <Chip
-                        key={item.key}
-                        icon={item.icon}
-                        label={item.label}
-                        onClick={() => handleStageChange(item.key)}
-                        color={selected ? "primary" : "default"}
-                        variant={selected ? "filled" : "outlined"}
-                        sx={{ fontWeight: selected ? 700 : 500 }}
-                      />
-                    );
-                  })}
-                </Stack>
-
-                <Box
-                  sx={{
-                    display: "grid",
-                    gridTemplateColumns: { xs: "repeat(2, minmax(0, 1fr))", md: "repeat(4, minmax(0, 1fr))" },
-                    gap: 0.9,
-                  }}
-                >
-                  {sidebarStats.map((item) => (
-                    <Box
-                      key={item.label}
-                      sx={{
-                        p: 1,
-                        borderRadius: 4,
-                        bgcolor: alpha(theme.palette.background.paper, 0.6),
-                        border: "none",
-                        boxShadow: "none",
-                      }}
+          <Content className="app-content">
+            <Card className="session-hero">
+              <div className="session-hero-top">
+                <div className="session-hero-copy">
+                  <Space size={[8, 8]} wrap className="session-hero-chip-row">
+                    <Tag color="gold">{stageLabel}</Tag>
+                    <Tag
+                      color={
+                        practiceMode === "mission"
+                          ? "geekblue"
+                          : practiceMode === "weak"
+                            ? "volcano"
+                            : "default"
+                      }
                     >
-                      <Typography variant="caption" color="text.secondary">
-                        {item.label}
-                      </Typography>
-                      <Typography sx={{ mt: 0.15, fontWeight: 800 }}>{item.value}</Typography>
-                    </Box>
-                  ))}
-                </Box>
+                      {practiceMode === "mission"
+                        ? feature.mission
+                        : practiceMode === "weak"
+                          ? feature.weak
+                          : feature.standard}
+                    </Tag>
+                  </Space>
+                  <Typography.Title level={2}>{sessionTitle}</Typography.Title>
+                  <Typography.Paragraph>{sessionDescription}</Typography.Paragraph>
+                </div>
 
-                <Box
-                  sx={{
-                    p: 1,
-                    borderRadius: 4,
-                    bgcolor: alpha(theme.palette.background.paper, 0.6),
-                    border: "none",
-                    boxShadow: "none",
-                  }}
-                >
-                  <Typography variant="caption" color="text.secondary">
-                    {copy.recentTitle}
-                  </Typography>
-                  <Stack direction="row" spacing={0.8} sx={{ mt: 0.6, flexWrap: "wrap" }} useFlexGap>
-                    {history.length === 0 ? (
-                      <Typography variant="body2" color="text.secondary">
-                        {copy.noHistory}
-                      </Typography>
-                    ) : (
-                      history.slice(0, 6).map((item, index) => (
-                        <Chip
-                          key={`${item.word}-${index}`}
-                          size="small"
-                          label={`${item.word} • ${item.timeTaken}s`}
-                          color={item.correct ? "success" : "warning"}
-                          variant="outlined"
-                        />
-                      ))
-                    )}
-                  </Stack>
-                </Box>
-              </Stack>
-            </Paper>
+                <div className="session-hero-controls">
+                  <div className="session-hero-control">
+                    <span>{feature.modeLabel}</span>
+                    <Segmented
+                      block
+                      value={practiceMode}
+                      options={[
+                        { label: feature.standard, value: "standard" },
+                        {
+                          label: `${feature.weak}${weakPreviewCount ? ` (${weakPreviewCount})` : ""}`,
+                          value: "weak",
+                        },
+                        { label: feature.mission, value: "mission" },
+                      ]}
+                      onChange={handleModeChange}
+                    />
+                  </div>
+                  <div className="session-hero-control">
+                    <span>{copy.category}</span>
+                    <Select
+                      value={safeCategory}
+                      options={deckSelectOptions}
+                      disabled={practiceMode === "mission"}
+                      onChange={(value) => setCategory(value)}
+                    />
+                  </div>
+                  <Tag className="session-hero-direction">{`${copy.direction}: ${directionLabel}`}</Tag>
+                </div>
+              </div>
 
-            <Paper
-              sx={{
-                width: "100%",
-                p: { xs: 1.05, md: 1.2 },
-                backgroundColor:
-                  mode === "dark"
-                    ? alpha(theme.palette.background.paper, 0.84)
-                    : "rgba(255, 250, 243, 0.94)",
-                border: "none",
-                boxShadow:
-                  mode === "dark"
-                    ? "0 16px 38px rgba(0, 0, 0, 0.2)"
-                    : "0 16px 34px rgba(117, 101, 72, 0.1)",
-              }}
-            >
-              <Box
-                sx={{
-                  display: "grid",
-                  gridTemplateColumns: {
-                    xs: "1fr",
-                    xl: "minmax(0, 1.16fr) minmax(360px, 0.84fr)",
-                  },
-                  gap: 1.35,
-                  alignItems: "start",
-                }}
-              >
-                <Paper
-                  elevation={0}
-                  sx={{
-                    borderRadius: 6,
-                    p: { xs: 1.05, md: 1.2 },
-                    background:
-                      mode === "dark"
-                        ? alpha("#ffffff", 0.025)
-                        : alpha("#ffffff", 0.52),
-                    border: "none",
-                  }}
-                >
+              {practiceMode === "mission" ? (
+                <Card className="session-mode-card" size="small">
+                  <div className="session-mode-card-top">
+                    <div>
+                      <Typography.Title level={5}>
+                        {feature.missionTitle}: {getLocalized(todayMission.title, locale)}
+                      </Typography.Title>
+                      <Typography.Paragraph>
+                        {getLocalized(todayMission.summary, locale)}
+                      </Typography.Paragraph>
+                    </div>
+                    <div className="session-mode-card-stats">
+                      <Tag color="blue">
+                        {feature.missionGoal}: {todayMission.goal}
+                      </Tag>
+                      <Tag color="green">
+                        {feature.missionProgress}: {missionSolvedCount}/{missionDeck.length}
+                      </Tag>
+                    </div>
+                  </div>
+                  <Progress percent={missionProgressPercent} showInfo={false} />
+                </Card>
+              ) : null}
 
+              {practiceMode === "weak" ? (
+                <Alert
+                  className="session-mode-alert"
+                  type="warning"
+                  showIcon
+                  message={feature.weakTitle}
+                  description={feature.weakDescription}
+                />
+              ) : null}
+
+              <div className="session-loop">
+                <div className="session-loop-title">{copy.coachLoopTitle}</div>
+                <Steps
+                  current={reviewResult ? 3 : 1}
+                  responsive
+                  size="small"
+                  items={copy.coachLoop.map((item) => ({ title: item }))}
+                />
+              </div>
+            </Card>
+
+            <div className="study-workspace">
+              <div className="study-workspace-card">
                 <Flashcard
                   locale={locale}
                   prompt={currentPrompt}
-                  answer={answerBundle.primary}
                   phonetic={currentWord?.phonetic}
                   audio={currentWord?.audio}
-                  showDetail={showDetail}
                   studyMode={studyMode}
-                  categoryLabel={getLocalized(activeCategory.label, locale)}
                   stageLabel={stageLabel}
+                  categoryLabel={
+                    practiceMode === "mission"
+                      ? getLocalized(todayMission.title, locale)
+                      : getLocalized(activeCategory.label, locale)
+                  }
                   imageHint={currentWord?.imageHint}
                   scene={currentWord?.scene}
-                  partOfSpeech={currentWord?.partOfSpeech ? getLocalized(posLabels[currentWord.partOfSpeech], locale) : ""}
-                  grammarTag={currentWord?.grammarTag ? getLocalized(currentWord.grammarTag, locale) : ""}
-                  alternatives={answerBundle.alternatives}
+                  partOfSpeech={
+                    currentWord?.partOfSpeech
+                      ? getLocalized(posLabels[currentWord.partOfSpeech], locale)
+                      : ""
+                  }
+                  grammarTag={
+                    currentWord?.grammarTag
+                      ? getLocalized(currentWord.grammarTag, locale)
+                      : ""
+                  }
                   learnerHint={currentWord?.learnerHint}
-                  emptyText={copy.noDeck}
-                  meta={{ level: currentCard?.level ?? 0, dueAt: currentCard?.dueAt }}
+                  emptyText={
+                    practiceMode === "mission"
+                      ? feature.missionCompleted
+                      : practiceMode === "weak"
+                        ? feature.noWeakCards
+                        : copy.noDeck
+                  }
+                  meta={{
+                    level: currentCard?.level ?? 0,
+                    dueAt: currentCard?.dueAt,
+                    weak: currentCard?.weakScore >= 2,
+                  }}
+                  speechText={currentSpeechText}
+                  frequencyMeta={
+                    currentWord?.frequency
+                      ? getFrequencyMeta(currentWord.frequency, locale)
+                      : null
+                  }
+                  modeBadge={
+                    practiceMode === "mission"
+                      ? feature.mission
+                      : practiceMode === "weak"
+                        ? feature.weak
+                        : undefined
+                  }
                 />
+              </div>
 
-                </Paper>
-
-                <Box sx={{ position: { xl: "sticky" }, top: { xl: 88 } }}>
-                  <Paper
-                    sx={{
-                      borderRadius: 6,
-                      p: { xs: 1.05, md: 1.2 },
-                      background:
-                        mode === "dark"
-                          ? "linear-gradient(180deg, rgba(19, 33, 31, 0.98), rgba(15, 24, 23, 0.98))"
-                          : "linear-gradient(180deg, rgba(255,255,255,0.9), rgba(255,248,239,0.94))",
-                      border: "none",
-                      boxShadow:
-                        mode === "dark"
-                          ? "0 12px 28px rgba(0,0,0,0.16)"
-                          : "0 12px 24px rgba(120, 101, 73, 0.09)",
-                    }}
-                  >
-                    <Stack spacing={1.1}>
-                      <Box>
-                        <Typography variant="overline" color="text.secondary">
-                          {stageLabel}
-                        </Typography>
-                        <Typography variant="h5" sx={{ mt: 0.2 }}>
-                          {shellCopy.responsePanel}
-                        </Typography>
-                        <Typography
-                          variant="body2"
-                          color="text.secondary"
-                          sx={{ mt: 0.55, lineHeight: 1.55 }}
-                        >
-                          {shellCopy.responseHelper}
-                        </Typography>
-                      </Box>
-
+              <div className="study-workspace-answer">
                 <QuizForm
                   locale={locale}
+                  cardKey={`${activeDeckKey}:${currentWord?.word || "empty"}:${studyMode}:${practiceMode}`}
                   answer={answerBundle.primary}
                   acceptedAnswers={answerBundle.accepted}
                   alternatives={answerBundle.alternatives}
                   label={studyMode === "en-to-vi" ? copy.answerVi : copy.answerEn}
-                  onNext={handleAnswer}
-                  onShowDetail={setShowDetail}
+                  onSubmit={handleReviewSubmit}
+                  onContinue={handleContinue}
                   assistantHint={focusHint}
                   learnerHint={currentWord?.learnerHint}
-                  enableSpeech={stage === "speaking"}
-                  submitLabel={stage === "shadowing" ? (locale === "vi" ? "Đã nhại xong" : "Done shadowing") : locale === "vi" ? "Kiểm tra" : "Check"}
+                  enableSpeech={effectiveStage === "speaking"}
+                  evaluation={reviewResult}
+                  examples={currentExamples}
+                  submitLabel={
+                    effectiveStage === "shadowing"
+                      ? locale === "vi"
+                        ? "Đã nhại xong"
+                        : "Done shadowing"
+                      : locale === "vi"
+                        ? "Kiểm tra"
+                        : "Check"
+                  }
                 />
+              </div>
+            </div>
+          </Content>
+        </Layout>
+      </Layout>
 
-                      <Paper
-                        variant="outlined"
-                        sx={{
-                          p: 1,
-                          borderRadius: 4,
-                          bgcolor:
-                            mode === "dark"
-                              ? alpha("#ffffff", 0.03)
-                              : alpha(theme.palette.primary.main, 0.04),
-                        }}
-                      >
-                        <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.55 }}>
-                          {copy.focusRule}
-                        </Typography>
-                      </Paper>
-                    </Stack>
-                  </Paper>
-                </Box>
-              </Box>
-            </Paper>
-            </Stack>
-          </Box>
-        </Box>
+      <Drawer
+        open={mobileNavOpen}
+        onClose={() => setMobileNavOpen(false)}
+        placement="left"
+        width={312}
+        className="app-drawer"
+      >
+        {sidebarNode}
+      </Drawer>
 
-        <Dialog open={showInsightsDialog} onClose={() => setShowInsightsDialog(false)} fullWidth maxWidth="sm">
-          <DialogTitle>{copy.roadmapTitle}</DialogTitle>
-          <DialogContent>
-            <Stack spacing={2} sx={{ pt: 1 }}>
-              <Paper variant="outlined" sx={{ p: 2 }}>
-                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                  <Chip label={`${copy.today} ${todayProgress.words}/${goals.dailyWords}`} />
-                  <Chip label={`${copy.accuracy} ${accuracy(stats.correctAnswers, stats.totalWords)}%`} />
-                  <Chip label={`${copy.due} ${srsMeta.due}`} />
-                  <Chip label={`${copy.mastered} ${srsMeta.mastered}`} />
-                </Stack>
-              </Paper>
-              <Paper variant="outlined" sx={{ p: 2 }}>
-                {copy.roadmap.map((item) => <Typography key={item} variant="body2" color="text.secondary" sx={{ mb: 0.85 }}>{item}</Typography>)}
-              </Paper>
-              <Paper variant="outlined" sx={{ p: 2 }}>
-                <Typography variant="subtitle1" gutterBottom>{copy.recentTitle}</Typography>
-                {history.length === 0 ? (
-                  <Typography variant="body2" color="text.secondary">{copy.noHistory}</Typography>
-                ) : (
-                  history.slice(0, 6).map((item, index) => (
-                    <Typography key={`${item.word}-${index}`} variant="body2" color="text.secondary" sx={{ mb: 0.75 }}>
-                      {item.correct ? copy.historyCorrect : copy.historyWrong} • {item.word} • {item.timeTaken}s
-                    </Typography>
-                  ))
-                )}
-              </Paper>
-            </Stack>
-          </DialogContent>
-          <DialogActions sx={{ px: 3, pb: 3 }}><Button onClick={() => setShowInsightsDialog(false)}>{copy.close}</Button></DialogActions>
-        </Dialog>
+      <Modal
+        open={showConceptDialog}
+        title={copy.conceptTitle}
+        onCancel={() => setShowConceptDialog(false)}
+        footer={[
+          <Button key="close" onClick={() => setShowConceptDialog(false)}>
+            {copy.close}
+          </Button>,
+        ]}
+        width={860}
+      >
+        <Tabs items={conceptTabItems} />
+      </Modal>
 
-        <Dialog open={showProfileDialog} onClose={() => setShowProfileDialog(false)} fullWidth maxWidth="sm">
-          <DialogTitle>{copy.profileTitle}</DialogTitle>
-          <DialogContent>
-            <Stack spacing={2.2} sx={{ pt: 1 }}>
-              <FormControl fullWidth>
-                <InputLabel>{copy.dailyMinutes}</InputLabel>
-                <Select value={draftProfile.dailyMinutes} label={copy.dailyMinutes} onChange={(event) => setDraftProfile((previous) => ({ ...previous, dailyMinutes: event.target.value }))}>
-                  {Object.entries(copy.profileOptions.dailyMinutes).map(([value, label]) => <MenuItem key={value} value={value}>{label}</MenuItem>)}
-                </Select>
-              </FormControl>
-              <FormControl fullWidth>
-                <InputLabel>{copy.biggestPain}</InputLabel>
-                <Select value={draftProfile.focusPain} label={copy.biggestPain} onChange={(event) => setDraftProfile((previous) => ({ ...previous, focusPain: event.target.value }))}>
-                  {Object.entries(copy.profileOptions.focusPain).map(([value, label]) => <MenuItem key={value} value={value}>{label}</MenuItem>)}
-                </Select>
-              </FormControl>
-              <FormControl fullWidth>
-                <InputLabel>{copy.memoryStyle}</InputLabel>
-                <Select value={draftProfile.memoryStyle} label={copy.memoryStyle} onChange={(event) => setDraftProfile((previous) => ({ ...previous, memoryStyle: event.target.value }))}>
-                  {Object.entries(copy.profileOptions.memoryStyle).map(([value, label]) => <MenuItem key={value} value={value}>{label}</MenuItem>)}
-                </Select>
-              </FormControl>
-              <FormControl fullWidth>
-                <InputLabel>{copy.preferredTrack}</InputLabel>
-                <Select value={draftProfile.preferredTrack} label={copy.preferredTrack} onChange={(event) => setDraftProfile((previous) => ({ ...previous, preferredTrack: event.target.value }))}>
-                  {categories.filter((item) => item.section === "vocabulary").map((item) => <MenuItem key={item.key} value={item.key}>{item.emoji} {getLocalized(item.label, locale)}</MenuItem>)}
-                </Select>
-              </FormControl>
-            </Stack>
-          </DialogContent>
-          <DialogActions sx={{ px: 3, pb: 3 }}>
-            <Button onClick={() => setShowProfileDialog(false)}>{copy.later}</Button>
-            <Button onClick={handleSaveProfile} variant="contained">{copy.save}</Button>
-          </DialogActions>
-        </Dialog>
+      <Modal
+        open={showInsightsDialog}
+        title={copy.roadmapTitle}
+        onCancel={() => setShowInsightsDialog(false)}
+        footer={[
+          <Button key="close" onClick={() => setShowInsightsDialog(false)}>
+            {copy.close}
+          </Button>,
+        ]}
+        width={760}
+      >
+        <div className="modal-stat-grid">
+          {[
+            { label: copy.today, value: `${todayProgress.words}/${goals.dailyWords}` },
+            { label: copy.accuracy, value: `${accuracyValue}%` },
+            { label: copy.due, value: `${srsMeta.due}` },
+            { label: feature.weakCount, value: `${srsMeta.weak}` },
+          ].map((item) => (
+            <Card key={item.label} size="small">
+              <Typography.Text type="secondary">{item.label}</Typography.Text>
+              <Typography.Title level={3}>{item.value}</Typography.Title>
+            </Card>
+          ))}
+        </div>
 
-        <Snackbar open={notification.open} autoHideDuration={2600} onClose={() => setNotification((previous) => ({ ...previous, open: false }))} anchorOrigin={{ vertical: "top", horizontal: "center" }}>
-          <Alert variant="filled" severity={notification.severity} onClose={() => setNotification((previous) => ({ ...previous, open: false }))}>{notification.message}</Alert>
-        </Snackbar>
-      </Box>
-    </ThemeProvider>
+        <Card className="modal-list-card" size="small">
+          <Typography.Title level={5}>{copy.recentTitle}</Typography.Title>
+          {history.length === 0 ? (
+            <Typography.Paragraph>{copy.noHistory}</Typography.Paragraph>
+          ) : (
+            <ul className="concept-list">
+              {history.slice(0, 8).map((item, index) => (
+                <li key={`${item.word}-${index}`}>
+                  {(item.correct ? copy.historyCorrect : copy.historyWrong) +
+                    ` • ${item.word} • ${item.timeTaken}s`}
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        <Card className="modal-list-card" size="small">
+          <Typography.Title level={5}>Roadmap</Typography.Title>
+          <ul className="concept-list">
+            {copy.roadmap.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </Card>
+      </Modal>
+
+      <Modal
+        open={showImportDialog}
+        title={feature.importTitle}
+        onCancel={() => setShowImportDialog(false)}
+        footer={[
+          hasImportedDecks ? (
+            <Button key="clear" danger onClick={handleClearImported}>
+              {feature.importClear}
+            </Button>
+          ) : null,
+          <Button key="close" onClick={() => setShowImportDialog(false)}>
+            {copy.close}
+          </Button>,
+          <Button
+            key="choose"
+            type="primary"
+            icon={<ImportOutlined />}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            {feature.importOpen}
+          </Button>,
+        ]}
+        width={760}
+      >
+        <Space direction="vertical" size={16} style={{ width: "100%" }}>
+          <Alert
+            type="info"
+            showIcon
+            message={feature.importHint}
+            description={
+              <Space direction="vertical" size={6}>
+                <Typography.Text>{feature.importedHint}</Typography.Text>
+                <Typography.Text code>
+                  section,word,meaning,phonetic,partOfSpeech,frequency,alternativesEn,alternativesVi,learnerHint,examples
+                </Typography.Text>
+              </Space>
+            }
+          />
+
+          <div className="import-control-row">
+            <Space direction="vertical" size={8}>
+              <Typography.Text strong>
+                {locale === "vi" ? "Cách gộp dữ liệu" : "Merge strategy"}
+              </Typography.Text>
+              <Radio.Group
+                value={importStrategy}
+                onChange={(event) => setImportStrategy(event.target.value)}
+              >
+                <Radio.Button value="append">{feature.importAppend}</Radio.Button>
+                <Radio.Button value="replace">{feature.importReplace}</Radio.Button>
+              </Radio.Group>
+            </Space>
+
+            <Card size="small" className="modal-list-card">
+              <Typography.Text type="secondary">
+                {locale === "vi" ? "CSV ví dụ" : "CSV sample"}
+              </Typography.Text>
+              <Typography.Paragraph style={{ marginBottom: 0, marginTop: 8 }}>
+                <Typography.Text code>
+                  vocabulary,server,máy chủ,/ˈsɜː.vər/,noun,high,host|machine,,Máy chạy dịch vụ,The
+                  server is stable=&gt;Máy chủ đang ổn định
+                </Typography.Text>
+              </Typography.Paragraph>
+            </Card>
+          </div>
+
+          <div className="modal-stat-grid import-summary-grid">
+            <Card size="small">
+              <Typography.Text type="secondary">{feature.importVocab}</Typography.Text>
+              <Typography.Title level={3}>{importedDecks.vocabulary.length}</Typography.Title>
+            </Card>
+            <Card size="small">
+              <Typography.Text type="secondary">{feature.importPhrases}</Typography.Text>
+              <Typography.Title level={3}>{importedDecks.phrases.length}</Typography.Title>
+            </Card>
+            <Card size="small">
+              <Typography.Text type="secondary">{feature.importSources}</Typography.Text>
+              <Typography.Title level={3}>
+                {importedDecks.meta?.sources?.length || 0}
+              </Typography.Title>
+            </Card>
+            <Card size="small">
+              <Typography.Text type="secondary">
+                {locale === "vi" ? "Lần import gần nhất" : "Last imported"}
+              </Typography.Text>
+              <Typography.Title level={5}>{importedAtLabel}</Typography.Title>
+            </Card>
+          </div>
+
+          {importReport ? (
+            <Card className="modal-list-card" size="small">
+              <Typography.Title level={5}>{feature.importSummary}</Typography.Title>
+              <Space direction="vertical" size={4}>
+                <Typography.Text>
+                  {locale === "vi" ? "File" : "File"}: <strong>{importReport.fileName}</strong>
+                </Typography.Text>
+                <Typography.Text>
+                  {feature.importVocab}: <strong>{importReport.vocabulary}</strong>
+                </Typography.Text>
+                <Typography.Text>
+                  {feature.importPhrases}: <strong>{importReport.phrases}</strong>
+                </Typography.Text>
+                <Typography.Text>
+                  {locale === "vi" ? "Tổng số thẻ" : "Total cards"}:{" "}
+                  <strong>{importReport.total}</strong>
+                </Typography.Text>
+              </Space>
+            </Card>
+          ) : null}
+
+          {importedDecks.meta?.sources?.length ? (
+            <Card className="modal-list-card" size="small">
+              <Typography.Title level={5}>{feature.importSources}</Typography.Title>
+              <Space size={[8, 8]} wrap className="import-source-list">
+                {importedDecks.meta.sources.map((source) => (
+                  <Tag key={source}>{source}</Tag>
+                ))}
+              </Space>
+            </Card>
+          ) : null}
+        </Space>
+      </Modal>
+
+      <Modal
+        open={showProfileDialog}
+        title={copy.profileTitle}
+        onCancel={() => setShowProfileDialog(false)}
+        footer={[
+          <Button key="later" onClick={() => setShowProfileDialog(false)}>
+            {copy.later}
+          </Button>,
+          <Button key="save" type="primary" onClick={handleSaveProfile}>
+            {copy.save}
+          </Button>,
+        ]}
+        width={620}
+      >
+        <Form layout="vertical">
+          <Form.Item label={copy.dailyMinutes}>
+            <Select
+              value={draftProfile.dailyMinutes}
+              options={Object.entries(copy.profileOptions.dailyMinutes).map(
+                ([value, label]) => ({
+                  value,
+                  label,
+                })
+              )}
+              onChange={(value) =>
+                setDraftProfile((previous) => ({
+                  ...previous,
+                  dailyMinutes: value,
+                }))
+              }
+            />
+          </Form.Item>
+
+          <Form.Item label={copy.biggestPain}>
+            <Select
+              value={draftProfile.focusPain}
+              options={Object.entries(copy.profileOptions.focusPain).map(
+                ([value, label]) => ({
+                  value,
+                  label,
+                })
+              )}
+              onChange={(value) =>
+                setDraftProfile((previous) => ({
+                  ...previous,
+                  focusPain: value,
+                }))
+              }
+            />
+          </Form.Item>
+
+          <Form.Item label={copy.memoryStyle}>
+            <Select
+              value={draftProfile.memoryStyle}
+              options={Object.entries(copy.profileOptions.memoryStyle).map(
+                ([value, label]) => ({
+                  value,
+                  label,
+                })
+              )}
+              onChange={(value) =>
+                setDraftProfile((previous) => ({
+                  ...previous,
+                  memoryStyle: value,
+                }))
+              }
+            />
+          </Form.Item>
+
+          <Form.Item label={copy.preferredTrack}>
+            <Select
+              value={draftProfile.preferredTrack}
+              options={categories
+                .filter(
+                  (item) =>
+                    item.section === "vocabulary" && item.key !== "importedvocab"
+                )
+                .map((item) => ({
+                  value: item.key,
+                  label: `${item.emoji} ${getLocalized(item.label, locale)}`,
+                }))}
+              onChange={(value) =>
+                setDraftProfile((previous) => ({
+                  ...previous,
+                  preferredTrack: value,
+                }))
+              }
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
+    </ConfigProvider>
   );
 }
 

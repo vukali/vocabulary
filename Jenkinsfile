@@ -27,6 +27,25 @@ spec:
     - name: workspace-volume
       mountPath: /home/jenkins/agent
       readOnly: false
+  - name: node
+    image: node:22-alpine
+    command: ["/bin/sh", "-c", "sleep infinity"]
+    tty: true
+    volumeMounts:
+    - name: workspace-volume
+      mountPath: /home/jenkins/agent
+      readOnly: false
+  - name: sonar-scanner
+    image: sonarsource/sonar-scanner-cli:11.1
+    command: ["/bin/sh", "-c", "sleep infinity"]
+    tty: true
+    env:
+    - name: SONAR_USER_HOME
+      value: /tmp/sonar
+    volumeMounts:
+    - name: workspace-volume
+      mountPath: /home/jenkins/agent
+      readOnly: false
   volumes:
   - name: docker-config
     emptyDir: {}
@@ -45,6 +64,8 @@ spec:
         IMAGE_NAME = 'vocab-app'
         IMAGE_REPO = "${HARBOR_HOST}/${HARBOR_PROJECT}/${IMAGE_NAME}"
         IMAGE_TAG = "${env.BUILD_NUMBER}"
+        SONAR_PROJECT_KEY = 'vocab-app'
+        SONAR_PROJECT_NAME = 'vocab-app'
         SKIP_MARKER = '[skip-jenkins]'
         BOT_EMAIL = 'jenkins@local'
         SKIP_BUILD = 'false'
@@ -55,6 +76,37 @@ spec:
             steps {
                 retry(3) {  // Retry checkout up to 3 times
                     checkout scm
+                }
+            }
+        }
+
+        stage('Code Quality') {
+            steps {
+                container('node') {
+                    sh '''
+                        set -eu
+                        npm ci
+                        npm run build
+                    '''
+                }
+                container('sonar-scanner') {
+                    withSonarQubeEnv('sonarqube') {
+                        sh '''
+                            set -eu
+                            sonar-scanner \
+                              -Dsonar.projectKey="${SONAR_PROJECT_KEY}" \
+                              -Dsonar.projectName="${SONAR_PROJECT_NAME}" \
+                              -Dsonar.projectVersion="${BUILD_NUMBER}"
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Quality Gate') {
+            steps {
+                timeout(time: 10, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
                 }
             }
         }

@@ -1,15 +1,19 @@
 import React from "react";
-import { Box, Chip, IconButton, Stack, Typography, alpha } from "@mui/material";
-import VolumeUpIcon from "@mui/icons-material/VolumeUp";
-import { useTheme } from "@mui/material/styles";
+import {
+  AudioOutlined,
+  ClockCircleOutlined,
+  EyeOutlined,
+  FlagOutlined,
+  TagOutlined,
+} from "@ant-design/icons";
+import { Avatar, Button, Card, Empty, Space, Tag, Typography } from "antd";
 
 interface FlashcardProps {
   locale: string;
   prompt?: string;
-  answer?: string;
   phonetic?: string;
   audio?: string;
-  showDetail: boolean;
+  speechText?: string;
   studyMode: string;
   stageLabel?: string;
   categoryLabel?: string;
@@ -17,63 +21,85 @@ interface FlashcardProps {
   scene?: string;
   partOfSpeech?: string;
   grammarTag?: string;
-  alternatives?: string[];
   learnerHint?: string;
   emptyText?: string;
+  frequencyMeta?: {
+    color: string;
+    label: string;
+  } | null;
+  modeBadge?: string;
   meta?: {
     level?: number;
     dueAt?: number;
+    weak?: boolean;
   };
 }
 
 const copy = {
   vi: {
-    lookAt: "Mắt đang nhìn",
-    en: "Tiếng Anh",
-    vi: "Tiếng Việt",
-    imageHint: "Hình gợi nhớ",
-    answer: "Đáp án đúng",
-    hiddenAnswer: "...",
-    alternatives: "Cũng chấp nhận",
-    hint: "Mẹo nhớ",
-    typeFirst: "Tự gõ đáp án trước rồi mới xem.",
-    nextReview: "Thẻ này sẽ quay lại",
-    ready: "sẵn sàng ôn",
+    currentView: "Bạn đang nhìn",
+    english: "Tiếng Anh",
+    vietnamese: "Tiếng Việt",
+    imageHint: "Gợi hình",
     level: "Level",
+    due: "Lần ôn tiếp",
+    dueNow: "đã đến hạn",
+    ready: "sẵn sàng",
+    weak: "Thẻ yếu",
   },
   en: {
-    lookAt: "Current view",
-    en: "English",
-    vi: "Vietnamese",
-    imageHint: "Image cue",
-    answer: "Correct answer",
-    hiddenAnswer: "...",
-    alternatives: "Also accepted",
-    hint: "Memory tip",
-    typeFirst: "Type your answer before revealing it.",
-    nextReview: "This card returns",
-    ready: "ready for review",
+    currentView: "Current view",
+    english: "English",
+    vietnamese: "Vietnamese",
+    imageHint: "Visual cue",
     level: "Level",
+    due: "Next review",
+    dueNow: "due now",
+    ready: "ready",
+    weak: "Weak card",
   },
 };
 
 const formatDue = (dueAt?: number, locale = "vi") => {
-  if (!dueAt) return locale === "vi" ? "sẵn sàng ôn" : "ready for review";
+  if (!dueAt) return locale === "vi" ? "sẵn sàng" : "ready";
   const diff = dueAt - Date.now();
-  if (diff <= 0) return locale === "vi" ? "đã đến hạn" : "already due";
+
+  if (diff <= 0) {
+    return locale === "vi" ? "đã đến hạn" : "due now";
+  }
+
   const minutes = Math.round(diff / 60000);
-  if (minutes < 60) return locale === "vi" ? `${minutes} phút nữa` : `in ${minutes} min`;
+  if (minutes < 60) {
+    return locale === "vi" ? `${minutes} phút nữa` : `in ${minutes} min`;
+  }
+
   const hours = Math.round(minutes / 60);
   return locale === "vi" ? `${hours} giờ nữa` : `in ${hours} hours`;
 };
 
-const Flashcard: React.FC<FlashcardProps> = ({
+const speakValue = (audio?: string, value?: string) => {
+  if (!value) return;
+
+  if (audio) {
+    const sound = new Audio(audio);
+    sound.play().catch(() => undefined);
+    return;
+  }
+
+  if ("speechSynthesis" in window) {
+    const utterance = new SpeechSynthesisUtterance(value);
+    utterance.lang = "en-US";
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
+  }
+};
+
+export default function Flashcard({
   locale,
   prompt,
-  answer,
   phonetic,
   audio,
-  showDetail,
+  speechText,
   studyMode,
   stageLabel,
   categoryLabel,
@@ -81,244 +107,89 @@ const Flashcard: React.FC<FlashcardProps> = ({
   scene,
   partOfSpeech,
   grammarTag,
-  alternatives,
   learnerHint,
   emptyText,
+  frequencyMeta,
+  modeBadge,
   meta,
-}) => {
-  const theme = useTheme();
+}: FlashcardProps) {
   const t = copy[locale as "vi" | "en"] || copy.vi;
-
-  const speakWord = () => {
-    const wordToSpeak = studyMode === "en-to-vi" ? prompt : answer;
-    if (!wordToSpeak) return;
-
-    if (audio) {
-      const sound = new Audio(audio);
-      sound.play().catch(() => undefined);
-      return;
-    }
-
-    if ("speechSynthesis" in window) {
-      const utterance = new SpeechSynthesisUtterance(wordToSpeak);
-      utterance.lang = "en-US";
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(utterance);
-    }
-  };
 
   if (!prompt) {
     return (
-      <Box
-        sx={{
-          borderRadius: 4,
-          p: 4,
-          textAlign: "center",
-          bgcolor: alpha(theme.palette.text.primary, 0.04),
-        }}
-      >
-        <Typography color="text.secondary">{emptyText}</Typography>
-      </Box>
+      <Card className="flashcard-card">
+        <Empty description={emptyText} />
+      </Card>
     );
   }
 
   return (
-    <Box
-      sx={{
-        borderRadius: 5,
-        p: { xs: 1.6, md: 1.9 },
-        background:
-          theme.palette.mode === "dark"
-            ? "linear-gradient(180deg, rgba(24, 43, 39, 0.98), rgba(15, 24, 22, 0.98))"
-            : "linear-gradient(180deg, rgba(255, 251, 245, 0.99), rgba(246, 237, 222, 0.99))",
-        border: "none",
-        boxShadow:
-          theme.palette.mode === "dark"
-            ? "0 16px 30px rgba(0, 0, 0, 0.16)"
-            : "0 16px 30px rgba(130, 111, 82, 0.08)",
-      }}
+    <Card
+      className="flashcard-card"
+      title={
+        <Space size={8} wrap>
+          {stageLabel ? <Tag color="gold">{stageLabel}</Tag> : null}
+          {categoryLabel ? <Tag>{categoryLabel}</Tag> : null}
+          {modeBadge ? (
+            <Tag color="geekblue" icon={<FlagOutlined />}>
+              {modeBadge}
+            </Tag>
+          ) : null}
+          {partOfSpeech ? <Tag icon={<TagOutlined />}>{partOfSpeech}</Tag> : null}
+          {grammarTag ? <Tag color="purple">{grammarTag}</Tag> : null}
+          {frequencyMeta ? <Tag color={frequencyMeta.color}>{frequencyMeta.label}</Tag> : null}
+          {meta?.weak ? <Tag color="volcano">{t.weak}</Tag> : null}
+        </Space>
+      }
+      extra={
+        <Button
+          type="text"
+          shape="circle"
+          icon={<AudioOutlined />}
+          onClick={() => speakValue(audio, speechText || prompt)}
+        />
+      }
     >
-      <Stack spacing={1.35}>
-        <Stack direction="row" spacing={0.8} flexWrap="wrap" useFlexGap>
-          <Chip size="small" label={categoryLabel || "Flashcard"} variant="outlined" />
-          {stageLabel && <Chip size="small" label={stageLabel} color="secondary" variant="outlined" />}
-          {partOfSpeech && <Chip size="small" label={partOfSpeech} variant="outlined" />}
-          {grammarTag && <Chip size="small" label={grammarTag} variant="outlined" />}
-          <Chip size="small" label={`${t.level} ${meta?.level ?? 0}`} variant="outlined" />
-        </Stack>
+      <div className="flashcard-body">
+        <div className="flashcard-header">
+          <Avatar className="flashcard-avatar" size={72}>
+            {imageHint || "🧠"}
+          </Avatar>
 
-        <Box
-          sx={{
-            borderRadius: 4,
-            p: { xs: 1.25, md: 1.45 },
-            bgcolor:
-              theme.palette.mode === "dark"
-                ? alpha("#ffffff", 0.02)
-                : alpha("#ffffff", 0.45),
-            border: "none",
-            boxShadow: "none",
-          }}
-        >
-          <Stack
-            direction={{ xs: "column", sm: "row" }}
-            spacing={1.4}
-            alignItems={{ xs: "flex-start", sm: "stretch" }}
-            sx={{ minWidth: 0 }}
-          >
-            <Box
-              sx={{
-                width: 78,
-                minWidth: 78,
-                height: 78,
-                borderRadius: "24px",
-                display: "grid",
-                placeItems: "center",
-                fontSize: "2rem",
-                bgcolor:
-                  theme.palette.mode === "dark"
-                    ? alpha(theme.palette.primary.main, 0.14)
-                    : alpha(theme.palette.secondary.main, 0.12),
-                boxShadow: "none",
-              }}
-            >
-              {imageHint || "🧠"}
-            </Box>
+          <div className="flashcard-copy">
+            <Space size={6} className="flashcard-eyebrow">
+              <EyeOutlined />
+              <span>
+                {t.currentView}: {studyMode === "en-to-vi" ? t.english : t.vietnamese}
+              </span>
+            </Space>
 
-            <Stack spacing={0.75} sx={{ flexGrow: 1, minWidth: 0 }}>
-              <Typography
-                variant="overline"
-                color="text.secondary"
-                sx={{ lineHeight: 1.2, letterSpacing: "0.08em" }}
-              >
-                {t.lookAt}: {studyMode === "en-to-vi" ? t.en : t.vi}
-              </Typography>
+            <Typography.Title level={1} className="flashcard-prompt">
+              {prompt}
+            </Typography.Title>
 
-              <Stack
-                direction="row"
-                spacing={1}
-                alignItems="flex-start"
-                justifyContent="space-between"
-                sx={{ minWidth: 0 }}
-              >
-                <Typography
-                  variant="h3"
-                  sx={{
-                    fontSize: { xs: "1.75rem", md: "2.15rem" },
-                    lineHeight: 1.08,
-                    wordBreak: "break-word",
-                    overflowWrap: "anywhere",
-                    minWidth: 0,
-                    pr: 1,
-                    flex: 1,
-                  }}
-                >
-                  {prompt}
-                </Typography>
-
-                <IconButton
-                  onClick={speakWord}
-                  sx={{
-                    bgcolor: alpha(theme.palette.primary.main, 0.12),
-                    color: theme.palette.primary.main,
-                    flexShrink: 0,
-                    "&:hover": {
-                      bgcolor: alpha(theme.palette.primary.main, 0.18),
-                    },
-                  }}
-                >
-                  <VolumeUpIcon />
-                </IconButton>
-              </Stack>
-
-              {(phonetic || partOfSpeech || grammarTag) && (
-                <Typography variant="body2" color="text.secondary">
-                  {[partOfSpeech, grammarTag, phonetic].filter(Boolean).join(" • ")}
-                </Typography>
-              )}
-
-              {(scene || learnerHint) && (
-                <Box
-                  sx={{
-                    borderRadius: 3,
-                    px: 1,
-                    py: 0.9,
-                    bgcolor:
-                      theme.palette.mode === "dark"
-                        ? alpha(theme.palette.primary.main, 0.09)
-                        : alpha(theme.palette.secondary.main, 0.08),
-                  }}
-                >
-                  <Typography
-                    variant="body2"
-                    color="text.secondary"
-                    sx={{ lineHeight: 1.45, wordBreak: "break-word", overflowWrap: "anywhere" }}
-                  >
-                    {t.imageHint}: {scene || learnerHint}
-                  </Typography>
-                </Box>
-              )}
-            </Stack>
-          </Stack>
-        </Box>
-
-        {showDetail ? (
-          <Box
-            sx={{
-              borderRadius: 4,
-              p: 1.15,
-              maxWidth: { xs: "100%", md: 560 },
-              width: "100%",
-              bgcolor: alpha(theme.palette.primary.main, 0.12),
-              border: `1px solid ${alpha(theme.palette.primary.main, 0.22)}`,
-            }}
-          >
-            <Typography variant="overline" color="text.secondary">
-              {t.answer}
-            </Typography>
-
-            <Typography
-              variant="h5"
-              sx={{
-                mt: 0.2,
-                mb: 0.45,
-                fontSize: { xs: "1rem", md: "1.05rem" },
-                lineHeight: 1.45,
-                wordBreak: "break-word",
-                overflowWrap: "anywhere",
-                fontWeight: 700,
-              }}
-            >
-              {answer}
-            </Typography>
-
-            {alternatives && alternatives.length > 0 && (
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 0.35 }}>
-                {t.alternatives}: {alternatives.join(", ")}
-              </Typography>
+            {(phonetic || partOfSpeech || grammarTag) && (
+              <Typography.Paragraph className="flashcard-meta">
+                {[partOfSpeech, phonetic, grammarTag].filter(Boolean).join(" • ")}
+              </Typography.Paragraph>
             )}
+          </div>
+        </div>
 
-            {learnerHint && (
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 0.35 }}>
-                {t.hint}: {learnerHint}
-              </Typography>
-            )}
-
-            <Typography variant="body2" color="text.secondary">
-              {`${t.nextReview} ${formatDue(meta?.dueAt, locale)}.`}
-            </Typography>
-          </Box>
-        ) : (
-          <Typography
-            variant="body2"
-            color="text.secondary"
-            sx={{ px: 0.2, lineHeight: 1.5 }}
-          >
-            {t.typeFirst}
-          </Typography>
+        {(scene || learnerHint) && (
+          <Card className="flashcard-hint-card" size="small">
+            <Typography.Text strong>{t.imageHint}:</Typography.Text>{" "}
+            <Typography.Text>{scene || learnerHint}</Typography.Text>
+          </Card>
         )}
-      </Stack>
-    </Box>
-  );
-};
 
-export default Flashcard;
+        <div className="flashcard-footer">
+          <Tag icon={<ClockCircleOutlined />}>
+            {t.due}: {formatDue(meta?.dueAt, locale)}
+          </Tag>
+          <Tag>{`${t.level} ${meta?.level ?? 0}`}</Tag>
+        </div>
+      </div>
+    </Card>
+  );
+}

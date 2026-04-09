@@ -1,78 +1,122 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
-  Box,
+  Alert,
   Button,
-  IconButton,
-  Stack,
-  TextField,
+  Card,
+  Input,
+  type InputRef,
+  Space,
+  Tag,
   Typography,
-  alpha,
-} from "@mui/material";
-import { useTheme } from "@mui/material/styles";
-import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
-import MicRoundedIcon from "@mui/icons-material/MicRounded";
-import RadioButtonCheckedRoundedIcon from "@mui/icons-material/RadioButtonCheckedRounded";
-import StopRoundedIcon from "@mui/icons-material/StopRounded";
-import CancelRoundedIcon from "@mui/icons-material/CancelRounded";
+} from "antd";
+import {
+  ArrowRightOutlined,
+  AudioOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
+  LoadingOutlined,
+  SyncOutlined,
+} from "@ant-design/icons";
+import {
+  type BrowserSpeechRecognition,
+  extractTranscript,
+  getSpeechRecognitionCtor,
+} from "../utils/speech";
+
+interface ReviewResult {
+  isCorrect: boolean;
+  submittedValue: string;
+  timeTaken: number;
+}
+
+interface ExampleLine {
+  en: string;
+  vi?: string;
+}
 
 interface QuizFormProps {
   locale: string;
+  cardKey: string;
   answer: string;
   acceptedAnswers?: string[];
   alternatives?: string[];
   label: string;
-  onNext: (isCorrect: boolean) => void;
-  onShowDetail: (show: boolean) => void;
+  onSubmit: (payload: { isCorrect: boolean; submittedValue: string }) => void;
+  onContinue: () => void;
   assistantHint?: string;
   submitLabel?: string;
   learnerHint?: string;
   enableSpeech?: boolean;
+  evaluation: ReviewResult | null;
+  examples?: ExampleLine[];
 }
 
 const copy = {
   vi: {
-    relaxedTyping: "Cho phép gõ không dấu và chấp nhận nhiều cách trả lời đúng.",
+    typingHelp:
+      "Cho phép gõ không dấu và chấp nhận nhiều cách trả lời đúng gần nhau.",
+    answerPanel: "Trả lời ngay",
+    inputLabel: "Câu trả lời của bạn",
+    startVoice: "Nói",
+    stopVoice: "Dừng",
+    listening: "Đang nghe bạn nói...",
+    captured: "Đã thu giọng. Bạn có thể sửa nhanh rồi kiểm tra.",
+    unsupported: "Trình duyệt này chưa hỗ trợ thu giọng bằng Web Speech API.",
+    voiceError: "Mic chưa bắt rõ câu. Hãy nói chậm và rõ hơn.",
+    reviewSaved: "Lần chấm đầu đã được lưu vào vòng ôn.",
     correctTitle: "Đúng rồi",
     wrongTitle: "Chưa đúng",
-    correctBody: "Nhìn nhanh đáp án để khóa trí nhớ rồi sang thẻ tiếp theo.",
-    wrongBody: "Nhìn thẳng đáp án đúng, cách nói khác và mẹo nhớ ở đây.",
-    inputLabel: "Nhập đáp án",
-    startVoice: "Bật mic",
-    stopVoice: "Dừng mic",
-    voiceReady: "Bạn có thể bấm mic rồi nói câu tiếng Anh của mình.",
-    voiceListening: "Đang nghe bạn nói...",
-    voiceCaptured: "Đã thu giọng nói, bạn có thể sửa nhanh rồi kiểm tra.",
-    voiceUnsupported: "Trình duyệt này chưa hỗ trợ thu giọng bằng Web Speech API.",
-    voiceError: "Mic chưa thu được câu rõ ràng. Thử nói chậm hơn một lần nữa.",
-    yourAnswer: "Bạn đã gõ",
+    correctBody: "Khóa đáp án này vào trí nhớ rồi sang thẻ tiếp.",
+    wrongBody: "Đáp án đúng đã nằm ngay bên trên. Nhìn nhanh, gõ lại ngay trong ô dưới.",
+    retrySuccessTitle: "Đã sửa đúng",
+    retrySuccessBody:
+      "Bạn vừa khóa lại đáp án bằng lần gõ lại. Sang thẻ tiếp hoặc nhìn nhanh ví dụ.",
+    retryWrongTitle: "Vẫn chưa đúng",
+    retryWrongBody:
+      "Nhìn đáp án, gõ lại thêm một lần nữa hoặc bỏ qua để sang thẻ tiếp.",
+    autoNext: "Tự chuyển sang thẻ tiếp theo...",
+    yourAnswer: "Lần đầu bạn gõ",
+    retryAnswer: "Lần gõ lại",
     correctAnswer: "Đáp án đúng",
     alternatives: "Cũng chấp nhận",
     memoryTip: "Gợi ý nhớ",
-    continue: "Sang thẻ tiếp",
-    answerFirst: "Nhập xong rồi mới mở đáp án.",
-    tryAgainHint: "Sửa đáp án rồi bấm Kiểm tra lại.",
+    examples: "Câu nhớ nhanh",
+    retry: "Nhập lại ngay",
+    skip: "Bỏ qua thẻ này",
+    next: "Sang thẻ tiếp",
+    blank: "Bạn chưa nhập gì",
   },
   en: {
-    relaxedTyping: "Accent-free typing and alternative correct answers are accepted.",
+    typingHelp: "Accent-free typing and close alternative answers are accepted.",
+    answerPanel: "Respond now",
+    inputLabel: "Your answer",
+    startVoice: "Speak",
+    stopVoice: "Stop",
+    listening: "Listening to your voice...",
+    captured: "Voice captured. Edit it if needed, then check.",
+    unsupported: "This browser does not support Web Speech API input.",
+    voiceError: "The mic did not catch a clear sentence. Try speaking slower.",
+    reviewSaved: "Only the first scored attempt is saved into the review loop.",
     correctTitle: "Correct",
     wrongTitle: "Not yet",
-    correctBody: "Glance at the answer, lock it in, then move on.",
-    wrongBody: "Focus on the correct answer, alternatives, and memory tip.",
-    inputLabel: "Your answer",
-    startVoice: "Start mic",
-    stopVoice: "Stop mic",
-    voiceReady: "Tap the mic and say the English sentence out loud.",
-    voiceListening: "Listening...",
-    voiceCaptured: "Voice captured. Edit it if needed, then check.",
-    voiceUnsupported: "This browser does not support Web Speech API input.",
-    voiceError: "The mic did not catch a clear sentence. Try again slowly.",
-    yourAnswer: "You typed",
+    correctBody: "Lock this answer in and move to the next card.",
+    wrongBody: "The correct answer is already above. Scan it once, then type again right below.",
+    retrySuccessTitle: "Fixed on retry",
+    retrySuccessBody:
+      "You corrected the answer on the retry. Move on or scan the example once.",
+    retryWrongTitle: "Still not right",
+    retryWrongBody: "Look at the answer, type it once more, or skip to the next card.",
+    autoNext: "Moving to the next card automatically...",
+    yourAnswer: "First attempt",
+    retryAnswer: "Retry attempt",
     correctAnswer: "Correct answer",
     alternatives: "Also accepted",
     memoryTip: "Memory tip",
-    continue: "Next card",
-    answerFirst: "Type your answer before revealing it.",
-    tryAgainHint: "Edit your answer and press Check again.",
+    examples: "Quick example",
+    retry: "Retry now",
+    skip: "Skip this card",
+    next: "Next card",
+    blank: "You left it blank",
   },
 };
 
@@ -86,40 +130,85 @@ const normalize = (value: string) =>
     .trim()
     .toLowerCase();
 
-const QuizForm: React.FC<QuizFormProps> = ({
+export default function QuizForm({
   locale,
+  cardKey,
   answer,
   acceptedAnswers,
   alternatives,
   label,
-  onNext,
-  onShowDetail,
+  onSubmit,
+  onContinue,
   assistantHint,
   submitLabel,
   learnerHint,
   enableSpeech = false,
-}) => {
-  const theme = useTheme();
+  evaluation,
+  examples = [],
+}: QuizFormProps) {
   const t = copy[locale as "vi" | "en"] || copy.vi;
-  const inputRef = useRef<HTMLInputElement>(null);
-  const recognitionRef = useRef<any>(null);
+  const inputRef = useRef<InputRef | null>(null);
+  const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
+  const advanceTimerRef = useRef<number | null>(null);
   const [input, setInput] = useState("");
-  const [result, setResult] = useState<null | boolean>(null);
-  const [submittedValue, setSubmittedValue] = useState("");
   const [isRecording, setIsRecording] = useState(false);
-  const [speechSupported, setSpeechSupported] = useState<null | boolean>(enableSpeech ? null : false);
+  const [speechSupported, setSpeechSupported] = useState(false);
   const [speechStatus, setSpeechStatus] = useState("");
+  const [retryResult, setRetryResult] = useState<ReviewResult | null>(null);
+
+  const isRetryMode = Boolean(evaluation && !evaluation.isCorrect);
+  const isRecovered = Boolean(retryResult?.isCorrect);
+  const isResolved = Boolean(evaluation?.isCorrect || isRecovered);
+  const hasRetryMiss = Boolean(retryResult && !retryResult.isCorrect);
+  const shouldAutoAdvance = Boolean(evaluation?.isCorrect || isRecovered);
 
   useEffect(() => {
     setInput("");
-    setResult(null);
-    setSubmittedValue("");
     setIsRecording(false);
-    setSpeechStatus(enableSpeech ? t.voiceReady : "");
-    onShowDetail(false);
+    setRetryResult(null);
+    setSpeechStatus(enableSpeech ? t.typingHelp : "");
+    if (advanceTimerRef.current) {
+      window.clearTimeout(advanceTimerRef.current);
+      advanceTimerRef.current = null;
+    }
     recognitionRef.current?.stop?.();
     inputRef.current?.focus();
-  }, [answer, enableSpeech, onShowDetail, t.voiceReady]);
+  }, [cardKey, enableSpeech, t.typingHelp]);
+
+  useEffect(() => {
+    if (!evaluation?.isCorrect && evaluation) {
+      setInput("");
+      setIsRecording(false);
+      inputRef.current?.focus();
+    }
+  }, [evaluation]);
+
+  useEffect(() => {
+    if (evaluation) return;
+    setRetryResult(null);
+  }, [evaluation]);
+
+  useEffect(() => {
+    if (hasRetryMiss) {
+      setInput("");
+      inputRef.current?.focus();
+    }
+  }, [hasRetryMiss]);
+
+  useEffect(() => {
+    if (!shouldAutoAdvance) return undefined;
+
+    advanceTimerRef.current = window.setTimeout(() => {
+      onContinue();
+    }, 1100);
+
+    return () => {
+      if (advanceTimerRef.current) {
+        window.clearTimeout(advanceTimerRef.current);
+        advanceTimerRef.current = null;
+      }
+    };
+  }, [onContinue, shouldAutoAdvance]);
 
   useEffect(() => {
     if (!enableSpeech || typeof window === "undefined") {
@@ -129,12 +218,7 @@ const QuizForm: React.FC<QuizFormProps> = ({
       return undefined;
     }
 
-    const speechWindow = window as Window & {
-      SpeechRecognition?: any;
-      webkitSpeechRecognition?: any;
-    };
-    const SpeechRecognitionCtor =
-      speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
+    const SpeechRecognitionCtor = getSpeechRecognitionCtor(window);
 
     if (!SpeechRecognitionCtor) {
       setSpeechSupported(false);
@@ -149,19 +233,16 @@ const QuizForm: React.FC<QuizFormProps> = ({
 
     recognition.onstart = () => {
       setIsRecording(true);
-      setSpeechStatus(t.voiceListening);
+      setSpeechStatus(t.listening);
     };
 
-    recognition.onresult = (event: any) => {
-      const transcript = Array.from(event.results || [])
-        .map((item: any) => item[0]?.transcript || "")
-        .join(" ")
-        .trim();
+    recognition.onresult = (event) => {
+      const transcript = extractTranscript(event);
 
-      if (transcript) {
-        setInput(transcript);
-        setSpeechStatus(t.voiceCaptured);
-      }
+      if (!transcript) return;
+
+      setInput(transcript);
+      setSpeechStatus(t.captured);
     };
 
     recognition.onerror = () => {
@@ -180,28 +261,48 @@ const QuizForm: React.FC<QuizFormProps> = ({
       recognition.stop();
       recognitionRef.current = null;
     };
-  }, [enableSpeech, locale, t.voiceCaptured, t.voiceError, t.voiceListening]);
+  }, [enableSpeech, t.captured, t.listening, t.voiceError]);
 
-  const checkAnswer = () => {
+  const evaluateInput = () => {
     const normalizedInput = normalize(input);
     const pool = (acceptedAnswers?.length ? acceptedAnswers : [answer]).map(normalize);
     const isCorrect = pool.includes(normalizedInput);
 
-    onShowDetail(true);
-    if (isCorrect) {
-      onNext(true);
+    return {
+      isCorrect,
+      submittedValue: input.trim(),
+    };
+  };
+
+  const handleCheck = () => {
+    if (isResolved) return;
+
+    const result = evaluateInput();
+
+    if (!evaluation) {
+      onSubmit(result);
       return;
     }
-    setSubmittedValue(input.trim());
-    setResult(false);
+
+    setRetryResult({
+      ...result,
+      timeTaken: 0,
+    });
+  };
+
+  const handleContinueNow = () => {
+    if (advanceTimerRef.current) {
+      window.clearTimeout(advanceTimerRef.current);
+      advanceTimerRef.current = null;
+    }
+    onContinue();
   };
 
   const toggleRecording = () => {
-    if (speechSupported !== true || result === true) return;
+    if (!speechSupported || isResolved || isRetryMode) return;
 
     if (isRecording) {
       recognitionRef.current?.stop?.();
-      setSpeechStatus(t.voiceReady);
       return;
     }
 
@@ -213,256 +314,197 @@ const QuizForm: React.FC<QuizFormProps> = ({
     }
   };
 
-  const helperText =
-    result === null
-      ? speechStatus || assistantHint || t.relaxedTyping
-      : t.wrongBody;
-
-  const helperColor =
-    result === null ? theme.palette.text.secondary : theme.palette.secondary.main;
-
-  const wrongTone = {
-    bg: alpha(theme.palette.secondary.main, 0.12),
-    border: alpha(theme.palette.secondary.main, 0.22),
-    icon: <CancelRoundedIcon fontSize="small" />,
-  };
+  const feedbackTone =
+    evaluation?.isCorrect || isRecovered ? "success" : "warning";
+  const feedbackIcon =
+    feedbackTone === "success" ? <CheckCircleOutlined /> : <CloseCircleOutlined />;
+  const feedbackTitle = isRecovered
+    ? t.retrySuccessTitle
+    : hasRetryMiss
+      ? t.retryWrongTitle
+      : evaluation?.isCorrect
+        ? t.correctTitle
+        : t.wrongTitle;
+  const feedbackBody = isRecovered
+    ? t.retrySuccessBody
+    : hasRetryMiss
+      ? t.retryWrongBody
+      : evaluation?.isCorrect
+        ? t.correctBody
+        : t.wrongBody;
+  const primaryActionLabel =
+    isRetryMode ? t.retry : submitLabel || (locale === "vi" ? "Kiểm tra" : "Check");
+  const focusExample = examples[0];
+  const firstAttemptToneClass = evaluation?.isCorrect
+    ? "answer-context-item--attempt-success"
+    : "answer-context-item--attempt-warning";
+  const retryToneClass = retryResult?.isCorrect
+    ? "answer-context-item--retry-success"
+    : "answer-context-item--retry-warning";
 
   return (
-    <Box
-      sx={{
-        borderRadius: 4,
-        p: { xs: 1.2, md: 1.35 },
-        background:
-          theme.palette.mode === "dark"
-            ? alpha(theme.palette.text.primary, 0.03)
-            : "linear-gradient(180deg, rgba(255,255,255,0.82), rgba(255,250,243,0.92))",
-        border: "none",
-        boxShadow: "none",
-      }}
+    <Card
+      className="answer-card"
+      title={t.answerPanel}
+      extra={
+        enableSpeech && !evaluation ? (
+          <Button
+            icon={isRecording ? <LoadingOutlined /> : <AudioOutlined />}
+            onClick={toggleRecording}
+            disabled={!speechSupported}
+          >
+            {isRecording ? t.stopVoice : t.startVoice}
+          </Button>
+        ) : null
+      }
     >
-      <Stack spacing={1.1}>
-        <Stack
-          direction={{ xs: "column", sm: "row" }}
-          spacing={1}
-          alignItems={{ xs: "flex-start", sm: "center" }}
-          justifyContent="space-between"
-        >
-          <Box sx={{ minWidth: 0 }}>
-            <Typography
-              variant="caption"
-              sx={{
-                display: "block",
-                mb: 0.35,
-                color: theme.palette.text.secondary,
-                fontWeight: 800,
-                letterSpacing: "0.04em",
-              }}
-            >
-              {t.inputLabel}
-            </Typography>
-            <Typography
-              variant="body2"
-              sx={{
-                color: helperColor,
-                lineHeight: 1.45,
-                fontWeight: result === null ? 500 : 700,
-              }}
-            >
-              {helperText}
-            </Typography>
-          </Box>
+      <Space direction="vertical" size={16} style={{ width: "100%" }}>
+        {evaluation ? (
+          <div
+            className={`answer-context-card ${
+              feedbackTone === "success"
+                ? "answer-context-card--success"
+                : "answer-context-card--warning"
+            }`}
+          >
+            <div className="answer-context-header">
+              <div className="answer-context-status">
+                <span className="answer-context-icon">{feedbackIcon}</span>
+                <div className="answer-context-copy">
+                  <Typography.Text strong>{feedbackTitle}</Typography.Text>
+                  <Typography.Paragraph>{feedbackBody}</Typography.Paragraph>
+                </div>
+              </div>
 
-          {enableSpeech && (
-            <Button
-              variant={isRecording ? "contained" : "outlined"}
-              size="small"
-              onClick={toggleRecording}
-              disabled={speechSupported !== true || result === true}
-              startIcon={isRecording ? <StopRoundedIcon /> : <MicRoundedIcon />}
-              sx={{
-                minWidth: 124,
-                borderRadius: 999,
-                alignSelf: { xs: "stretch", sm: "center" },
-              }}
-            >
-              {isRecording ? t.stopVoice : t.startVoice}
-            </Button>
-          )}
-        </Stack>
+              <div className="answer-context-actions">
+                {isResolved ? (
+                  <Button
+                    type="primary"
+                    icon={<ArrowRightOutlined />}
+                    onClick={handleContinueNow}
+                  >
+                    {t.next}
+                  </Button>
+                ) : (
+                  <Button onClick={handleContinueNow}>{t.skip}</Button>
+                )}
+              </div>
+            </div>
 
-        <Stack direction="row" spacing={1} alignItems="stretch">
-          <TextField
-            inputRef={inputRef}
-            variant="filled"
-            placeholder={label}
+            <div className="answer-context-grid">
+              <div className="answer-context-item answer-context-item--answer">
+                <div className="answer-context-label">{t.correctAnswer}</div>
+                <div className="answer-context-value answer-context-value--primary">
+                  {answer}
+                </div>
+              </div>
+
+              <div
+                className={`answer-context-item answer-context-item--attempt ${firstAttemptToneClass}`}
+              >
+                <div className="answer-context-label">{t.yourAnswer}</div>
+                <div className="answer-context-value">
+                  {evaluation.submittedValue || t.blank}
+                </div>
+              </div>
+
+              {retryResult ? (
+                <div
+                  className={`answer-context-item answer-context-item--retry ${retryToneClass}`}
+                >
+                  <div className="answer-context-label">{t.retryAnswer}</div>
+                  <div className="answer-context-value">
+                    {retryResult.submittedValue || t.blank}
+                  </div>
+                </div>
+              ) : null}
+
+              {learnerHint ? (
+                <div className="answer-context-item answer-context-item--memory">
+                  <div className="answer-context-label">{t.memoryTip}</div>
+                  <div className="answer-context-value">{learnerHint}</div>
+                </div>
+              ) : null}
+            </div>
+
+            {alternatives && alternatives.length > 0 ? (
+              <div className="answer-context-note answer-context-note--alternatives">
+                <div className="answer-context-label">{t.alternatives}</div>
+                <Space size={[6, 6]} wrap>
+                  {alternatives.map((item) => (
+                    <Tag key={item}>{item}</Tag>
+                  ))}
+                </Space>
+              </div>
+            ) : null}
+
+            {focusExample ? (
+              <div className="answer-context-note answer-context-note--example">
+                <div className="answer-context-label">{t.examples}</div>
+                <div className="answer-context-example">
+                  <Typography.Text strong>{focusExample.en}</Typography.Text>
+                  {focusExample.vi ? (
+                    <Typography.Paragraph>{focusExample.vi}</Typography.Paragraph>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+
+            <div className="answer-context-footer">
+              <Typography.Text type="secondary">
+                {isRecovered ? t.autoNext : t.reviewSaved}
+              </Typography.Text>
+            </div>
+          </div>
+        ) : (
+          <Alert
+            type="info"
+            showIcon
+            message={assistantHint || t.typingHelp}
+            description={
+              enableSpeech
+                ? speechSupported
+                  ? speechStatus || t.typingHelp
+                  : t.unsupported
+                : t.typingHelp
+            }
+          />
+        )}
+
+        <div className="answer-input-label">{t.inputLabel}</div>
+
+        <div className="answer-input-row">
+          <Input
+            ref={inputRef}
             value={input}
+            size="large"
+            placeholder={label}
+            className="answer-input"
             onChange={(event) => setInput(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key !== "Enter") return;
-              if (input.trim()) checkAnswer();
-            }}
-            fullWidth
-            size="small"
-            disabled={result === true}
-            InputProps={{ disableUnderline: true }}
-            sx={{
-              "& .MuiFilledInput-root": {
-                borderRadius: 999,
-                overflow: "hidden",
-                backgroundColor:
-                  theme.palette.mode === "dark"
-                    ? alpha("#ffffff", 0.04)
-                    : alpha("#0b0f0f", 0.04),
-                border: "none",
-                boxShadow: "none",
-                transition: "all 0.18s ease",
-                "&:hover": {
-                  backgroundColor:
-                    theme.palette.mode === "dark"
-                      ? alpha("#ffffff", 0.06)
-                      : alpha("#0b0f0f", 0.055),
-                  boxShadow: `0 0 0 4px ${alpha(theme.palette.primary.main, 0.08)}`,
-                },
-                "&.Mui-focused": {
-                  backgroundColor:
-                    theme.palette.mode === "dark"
-                      ? alpha("#ffffff", 0.07)
-                      : alpha("#0b0f0f", 0.06),
-                  boxShadow: `0 0 0 4px ${alpha(theme.palette.primary.main, 0.12)}`,
-                  borderColor: alpha(theme.palette.primary.main, 0.35),
-                },
-                "&.Mui-disabled": {
-                  opacity: 0.85,
-                },
-              },
-              "& .MuiInputBase-input": {
-                fontSize: "0.98rem",
-                py: 1.05,
-              },
-              "& .MuiInputBase-input::placeholder": {
-                color: alpha(theme.palette.text.secondary, 0.9),
-                opacity: 1,
-              },
-            }}
+            onPressEnter={handleCheck}
+            disabled={isResolved}
           />
 
-          {enableSpeech && (
-            <IconButton
-              onClick={toggleRecording}
-              disabled={speechSupported !== true || result === true}
-              sx={{
-                width: 44,
-                height: 44,
-                borderRadius: 3,
-                border: `1px solid ${alpha(theme.palette.text.primary, 0.08)}`,
-                bgcolor: isRecording ? alpha(theme.palette.secondary.main, 0.14) : alpha(theme.palette.primary.main, 0.08),
-                color: isRecording ? theme.palette.secondary.main : theme.palette.primary.main,
-                flexShrink: 0,
-              }}
-            >
-              {isRecording ? <RadioButtonCheckedRoundedIcon /> : <MicRoundedIcon />}
-            </IconButton>
-          )}
-        </Stack>
-
-        {enableSpeech && speechSupported === false && (
-          <Typography variant="body2" color="text.secondary">
-            {t.voiceUnsupported}
-          </Typography>
-        )}
-
-        {result === false && (
-          <Box
-            sx={{
-              borderRadius: 4,
-              p: 1.2,
-              bgcolor: wrongTone.bg,
-              border: `1px solid ${wrongTone.border}`,
-            }}
-          >
-            <Stack spacing={0.8}>
-              <Stack direction="row" spacing={1} alignItems="center">
-                <Box
-                  sx={{
-                    width: 34,
-                    height: 34,
-                    borderRadius: "50%",
-                    display: "grid",
-                    placeItems: "center",
-                    bgcolor: alpha(theme.palette.background.paper, 0.72),
-                    color: theme.palette.secondary.main,
-                    flexShrink: 0,
-                  }}
-                >
-                  {wrongTone.icon}
-                </Box>
-                <Typography variant="body1" sx={{ fontWeight: 800 }}>
-                  {t.wrongTitle}
-                </Typography>
-              </Stack>
-
-              {submittedValue && (
-                <Typography variant="body2" color="text.secondary">
-                  {t.yourAnswer}: {submittedValue}
-                </Typography>
-              )}
-
-              <Typography variant="body1" sx={{ fontWeight: 700, lineHeight: 1.5 }}>
-                {t.correctAnswer}: {answer}
-              </Typography>
-
-              {alternatives && alternatives.length > 0 && (
-                <Typography variant="body2" color="text.secondary">
-                  {t.alternatives}: {alternatives.join(", ")}
-                </Typography>
-              )}
-
-              {learnerHint && (
-                <Typography variant="body2" color="text.secondary">
-                  {t.memoryTip}: {learnerHint}
-                </Typography>
-              )}
-            </Stack>
-          </Box>
-        )}
-
-        {(result === null || result === false) && (
-          <Stack
-            direction={{ xs: "column", sm: "row" }}
-            spacing={1}
-            alignItems={{ xs: "stretch", sm: "center" }}
-            justifyContent="space-between"
-          >
-            <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.45 }}>
-              {result === false ? t.tryAgainHint : assistantHint || t.answerFirst}
-            </Typography>
+          {enableSpeech && !evaluation ? (
             <Button
-              variant="contained"
-              onClick={checkAnswer}
-              disabled={!input.trim()}
-              size="small"
-              endIcon={<ArrowForwardRoundedIcon />}
-              sx={{
-                px: 2.1,
-                borderRadius: 999,
-                background:
-                  theme.palette.mode === "dark"
-                    ? "linear-gradient(135deg, #7fe4b5, #56c98f)"
-                    : "linear-gradient(135deg, #2d7163, #4d9b88)",
-                color: theme.palette.mode === "dark" ? "#10201a" : "#ffffff",
-                boxShadow:
-                  theme.palette.mode === "dark"
-                    ? "0 10px 22px rgba(38, 153, 110, 0.18)"
-                    : "0 10px 18px rgba(52, 121, 102, 0.16)",
-              }}
-            >
-              {submitLabel || (locale === "vi" ? "Kiểm tra" : "Check")}
-            </Button>
-          </Stack>
-        )}
-      </Stack>
-    </Box>
-  );
-};
+              size="large"
+              icon={isRecording ? <SyncOutlined spin /> : <AudioOutlined />}
+              onClick={toggleRecording}
+              disabled={!speechSupported}
+            />
+          ) : null}
 
-export default QuizForm;
+          <Button
+            type="primary"
+            size="large"
+            className="answer-submit-button"
+            onClick={handleCheck}
+            disabled={!input.trim() || isResolved}
+          >
+            {primaryActionLabel}
+          </Button>
+        </div>
+      </Space>
+    </Card>
+  );
+}

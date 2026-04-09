@@ -7,7 +7,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install dependencies
-RUN npm install
+RUN npm ci
 
 # Copy source code
 COPY . .
@@ -23,12 +23,19 @@ WORKDIR /app
 
 # Copy built assets from builder stage
 COPY --from=builder /app/dist /app/dist
+COPY server.mjs /app/server.mjs
 
-# Install preview server
-RUN npm install -g serve
+# Create runtime user
+RUN addgroup -S app \
+    && adduser -S -D -H -u 10001 app -G app \
+    && rm -rf /usr/local/lib/node_modules/npm \
+    && rm -f /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
+    && chown -R 10001:10001 /app
 
-# Expose port for preview server
+USER 10001:10001
+
+# Expose port for static server
 EXPOSE 5173
 
 # Serve the built app
-CMD ["serve", "-s", "dist", "-l", "5173"]
+CMD ["node", "/app/server.mjs"]
